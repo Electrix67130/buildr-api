@@ -1,0 +1,63 @@
+
+networks:
+  buildr_network:
+    driver: bridge
+
+services:
+  buildr-api:
+    container_name: buildr-api
+    build:
+      context: .
+      target: development
+    ports:
+      - "${PORT:-3001}:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      HOST: 0.0.0.0
+      DB_HOST: buildr-db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-buildr}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-15m}
+      API_KEY: ${API_KEY:-change-me-in-production}
+      APP_URL: ${APP_URL:-http://192.168.1.228:3001}
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      buildr-db:
+        condition: service_healthy
+    networks:
+      - buildr_network
+    healthcheck:
+      test: curl --fail http://localhost:3000/health || exit 1
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      timeout: 10s
+
+  buildr-db:
+    container_name: buildr-db
+    image: postgres:17-alpine
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME:-buildr}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - buildr_db_data:/var/lib/postgresql/data
+    networks:
+      - buildr_network
+    healthcheck:
+      test: pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-buildr}
+      interval: 10s
+      retries: 5
+      start_period: 5s
+      timeout: 5s
+
+volumes:
+  buildr_db_data:
