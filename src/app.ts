@@ -7,6 +7,7 @@ import autoload from '@fastify/autoload';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
+import env from './config/env';
 import database from './plugins/database';
 import errorHandler from './plugins/error-handler';
 import apiKey from './plugins/api-key';
@@ -29,7 +30,17 @@ function buildApp(opts: AppOptions = {}) {
 
   // Security plugins
   app.register(helmet);
-  app.register(cors, { origin: true, methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'] });
+  // En prod : liste blanche (dashboard + vitrine). Les apps natives n'envoient
+  // pas d'en-tete Origin, elles ne sont donc pas concernees par le CORS.
+  // En dev : on autorise toutes les origines.
+  const corsOrigin =
+    env.NODE_ENV === 'production'
+      ? env.CORS_ORIGINS
+          .split(',')
+          .map((o) => o.trim())
+          .filter(Boolean)
+      : true;
+  app.register(cors, { origin: corsOrigin, methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'] });
   app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
   app.register(sensible);
 

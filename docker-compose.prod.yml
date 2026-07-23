@@ -1,0 +1,75 @@
+# Stack de production Buildr (phase beta) : API + Postgres sur un seul VPS.
+# Caddy (HTTPS/Let's Encrypt) tourne sur l'HOTE et proxy vers 127.0.0.1:3000.
+# (meme pattern que estia-menage-api — cf. docs/DEPLOYMENT.md)
+#
+# Usage :
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml run --rm api npm run migrate
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Les variables (DB_*, JWT_SECRET, API_KEY, SMTP_*/RESEND_*, ...) sont lues
+# depuis le fichier .env present dans ce dossier (interpolation + env_file).
+
+networks:
+  buildr_prod:
+    driver: bridge
+
+services:
+  api:
+    container_name: buildr-api
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      # Dans le reseau compose, la DB est joignable via le nom de service.
+      DB_HOST: db
+      DB_PORT: 5432
+    # Publie uniquement en local : Caddy (hote) fait le reverse proxy HTTPS.
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      # Persiste les photos/documents (STORAGE_MODE=local, S3 pas encore code).
+      - buildr_uploads:/usr/src/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - buildr_prod
+    healthcheck:
+      test: wget -q --spider http://127.0.0.1:3000/health || exit 1
+      interval: 30s
+      retries: 3
+      start_period: 15s
+      timeout: 10s
+
+  db:
+    container_name: buildr-db
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - buildr_db_data:/var/lib/postgresql/data
+    # Publie UNIQUEMENT sur le localhost du VPS (jamais 0.0.0.0) → accessible
+    # seulement depuis le serveur ou via un tunnel SSH (ex. DataGrip).
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - buildr_prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+volumes:
+  buildr_uploads:
+  buildr_db_data:

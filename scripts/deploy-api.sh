@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Deploiement de l'API Buildr sur le VPS. Lance par GitHub Actions en SSH
+# (cf. .github/workflows/deploy.yml) OU a la main.
+#
+# Sur le VPS, lier ce script depuis le home du user de deploiement :
+#   ln -sf /home/buildr/api/scripts/deploy-api.sh /home/buildr/deploy-api.sh
+#
+# Usage : deploy-api.sh [ref]   (ref = tag de version, ex 1.0.0, ou 'master')
+
+set -euo pipefail
+
+REF="${1:-master}"
+APP_DIR="/home/buildr/api"
+COMPOSE="docker compose -f docker-compose.prod.yml"
+
+cd "$APP_DIR"
+
+echo "[deploy] Recuperation du code (ref: $REF)..."
+git fetch --all --tags --prune
+git checkout "$REF"
+# Sur une branche (master), on avance au dernier commit. Sur un tag (HEAD
+# detache), le checkout suffit — pas de pull.
+if git symbolic-ref -q HEAD >/dev/null; then
+  git pull --ff-only origin "$REF"
+fi
+
+echo "[deploy] Build de l'image API..."
+$COMPOSE build api
+
+echo "[deploy] Migrations..."
+$COMPOSE run --rm api npm run migrate
+
+echo "[deploy] Demarrage de la stack..."
+$COMPOSE up -d
+
+echo "[deploy] Nettoyage des images orphelines..."
+docker image prune -f
+
+echo "[deploy] OK — ref $REF deployee."

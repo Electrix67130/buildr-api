@@ -1,0 +1,14 @@
+# Reverse proxy Buildr — s'installe sur l'HOTE dans /etc/caddy/Caddyfile
+# (Caddy natif via apt, PAS dans Docker). Caddy obtient et renouvelle le
+# certificat Let's Encrypt automatiquement.
+#
+#   sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#
+# Prerequis : api.getbuildr.fr doit resoudre vers l'IP du VPS (DNS direct,
+# sans proxy Cloudflare) et les ports 80/443 doivent etre ouverts (ufw).
+
+api.getbuildr.fr {
+	# WebSocket (temps reel) + HTTP -> API publiee sur 127.0.0.1:3000
+	reverse_proxy localhost:3000
+	encode gzip zstd
+}

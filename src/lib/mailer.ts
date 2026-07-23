@@ -19,9 +19,31 @@ interface SendMailOptions {
   html: string;
 }
 
+async function sendViaResend({ to, subject, html }: SendMailOptions): Promise<void> {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from: env.SMTP_FROM, to, subject, html }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Resend a répondu ${res.status}: ${detail}`);
+  }
+}
+
 export async function sendMail({ to, subject, html }: SendMailOptions): Promise<void> {
+  // Prod : Resend (HTTP API). Dev : SMTP si configuré. Sinon : log.
+  if (env.RESEND_API_KEY) {
+    await sendViaResend({ to, subject, html });
+    return;
+  }
+
   if (!transporter) {
-    console.log(`[MAIL] SMTP non configuré — mail non envoyé à ${to}`);
+    console.log(`[MAIL] Ni Resend ni SMTP configuré — mail non envoyé à ${to}`);
     console.log(`[MAIL] Sujet: ${subject}`);
     return;
   }

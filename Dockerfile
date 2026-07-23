@@ -9,7 +9,10 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 FROM base AS production
-RUN npm ci --only=production
+# npm ci complet (pas --only=production) : l'app tourne via tsx, qui est en
+# devDependencies. Acceptable pour la beta ; a compiler (tsc) plus tard.
+RUN npm ci
 COPY . .
+ENV NODE_ENV=production
 EXPOSE 3000
 CMD ["npm", "start"]

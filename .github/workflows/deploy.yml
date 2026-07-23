@@ -1,0 +1,56 @@
+# Deploiement Buildr — API (meme pattern que estia-menage-api).
+# Sur push d'un tag de version (ex. 1.0.0, sans "v") : gate tsc, puis SSH sur
+# le VPS et lancement de /home/buildr/deploy-api.sh <tag> (git checkout <tag>
+# + docker build + migrate + up, cf. docs/DEPLOYMENT-PLAN.md).
+#
+# Secrets GitHub requis (Settings → Secrets and variables → Actions) :
+#   SSH_HOST         IP ou hostname du VPS (ex. 51.15.214.102)
+#   SSH_USER         utilisateur de deploiement (= buildr)
+#   SSH_PRIVATE_KEY  cle privee SSH dont la publique est dans
+#                    ~buildr/.ssh/authorized_keys sur le VPS
+#   SSH_PORT         (optionnel) port SSH, defaut 22
+# Variable requise pour activer le job deploy :
+#   DEPLOY_ENABLED=true (onglet Variables)
+name: Deploy API
+
+on:
+  push:
+    tags: ['[0-9]*']    # deploiement declenche par un tag de version (ex: 1.0.0, sans "v")
+  workflow_dispatch: {} # ou run manuel (deploie master)
+
+# Un seul deploiement a la fois sur le VPS.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  deploy:
+    name: Deploy over SSH
+    needs: check
+    runs-on: ubuntu-latest
+    # Active seulement quand le VPS est pret et les secrets SSH renseignes :
+    # Settings → Secrets and variables → Actions → Variables → DEPLOY_ENABLED=true
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    steps:
+      - name: Run deploy-api.sh on the VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 20m
+          script_stop: true
+          script: /home/buildr/deploy-api.sh ${{ github.ref_name }}
