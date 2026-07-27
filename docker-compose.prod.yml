@@ -1,6 +1,5 @@
 # Stack de production Buildr (phase beta) : API + Postgres sur un seul VPS.
 # Caddy (HTTPS/Let's Encrypt) tourne sur l'HOTE et proxy vers 127.0.0.1:3000.
-# (meme pattern que estia-menage-api — cf. docs/DEPLOYMENT.md)
 #
 # Usage :
 #   docker compose -f docker-compose.prod.yml build

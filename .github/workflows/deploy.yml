@@ -1,4 +1,4 @@
-# Deploiement Buildr — API (meme pattern que estia-menage-api).
+# Deploiement Buildr — API.
 # Sur push d'un tag de version (ex. 1.0.0, sans "v") : gate tsc, puis SSH sur
 # le VPS et lancement de /home/buildr/deploy-api.sh <tag> (git checkout <tag>
 # + docker build + migrate + up, cf. docs/DEPLOYMENT-PLAN.md).
