@@ -17,7 +17,7 @@ set -euo pipefail
 
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 COMPOSE_FILE="docker-compose.prod.yml"
-ENV_FILE=".env.production"
+ENV_FILE=".env"
 BACKUP_DIR="./backups"
 
 # Se placer a la racine du projet (dossier parent de scripts/)
