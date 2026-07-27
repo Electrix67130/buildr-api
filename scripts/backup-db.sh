@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sauvegarde quotidienne de la base Buildr (production).
 #
-# Fait un pg_dump depuis le conteneur buildr-db vers ./backups/, compresse,
+# Fait un pg_dump depuis le service db (conteneur buildr-db) vers ./backups/, compresse,
 # et supprime les sauvegardes de plus de RETENTION_DAYS jours.
 #
 # Installation du cron (tous les jours a 3h du matin) :
@@ -10,7 +10,7 @@
 #
 # Restauration :
 #   gunzip -c backups/buildr-YYYY-MM-DD_HHhMM.sql.gz | \
-#     docker compose -f docker-compose.prod.yml exec -T buildr-db \
+#     docker compose -f docker-compose.prod.yml exec -T db \
 #     psql -U "$DB_USER" -d "$DB_NAME"
 
 set -euo pipefail
@@ -40,7 +40,7 @@ TIMESTAMP="$(date +%Y-%m-%d_%Hh%M)"
 OUTFILE="$BACKUP_DIR/buildr-${TIMESTAMP}.sql.gz"
 
 echo "[backup] $(date) — dump de la base '$DB_NAME'..."
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T buildr-db \
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
   pg_dump -U "$DB_USER" -d "$DB_NAME" | gzip > "$OUTFILE"
 
 echo "[backup] OK -> $OUTFILE ($(du -h "$OUTFILE" | cut -f1))"
