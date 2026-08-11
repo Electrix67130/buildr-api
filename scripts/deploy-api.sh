@@ -30,8 +30,11 @@ $COMPOSE build api
 echo "[deploy] Migrations..."
 $COMPOSE run --rm api npm run migrate
 
-echo "[deploy] Demarrage de la stack..."
-$COMPOSE up -d
+# On ne demarre que l'API et la base : la vitrine et le dashboard sont
+# deployes separement (scripts/deploy-web.sh) et leurs repos ne sont pas
+# forcement presents a cote de celui-ci.
+echo "[deploy] Demarrage de l'API et de la base..."
+$COMPOSE up -d api db
 
 echo "[deploy] Nettoyage des images orphelines..."
 docker image prune -f

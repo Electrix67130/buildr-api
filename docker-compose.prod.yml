@@ -1,5 +1,6 @@
-# Stack de production Buildr (phase beta) : API + Postgres sur un seul VPS.
-# Caddy (HTTPS/Let's Encrypt) tourne sur l'HOTE et proxy vers 127.0.0.1:3000.
+# Stack de production Buildr (phase beta) : API + Postgres + vitrine + dashboard
+# sur un seul VPS. Caddy (HTTPS/Let's Encrypt) tourne sur l'HOTE et proxy vers
+# 127.0.0.1:3000 (api), :3001 (vitrine) et :3002 (dashboard).
 #
 # Usage :
 #   docker compose -f docker-compose.prod.yml build
@@ -8,6 +9,12 @@
 #
 # Les variables (DB_*, JWT_SECRET, API_KEY, SMTP_*/RESEND_*, ...) sont lues
 # depuis le fichier .env present dans ce dossier (interpolation + env_file).
+#
+# La vitrine et le dashboard vivent dans des repos separes, clones a cote de
+# celui-ci sur le VPS (cf. scripts/deploy-web.sh) :
+#   /home/buildr/api        <- ce repo
+#   /home/buildr/website
+#   /home/buildr/dashboard
 
 networks:
   buildr_prod:
@@ -45,6 +52,37 @@ services:
       retries: 3
       start_period: 15s
       timeout: 10s
+
+  website:
+    container_name: buildr-website
+    build:
+      context: ../website
+      target: production
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - buildr_prod
+
+  dashboard:
+    container_name: buildr-dashboard
+    build:
+      context: ../dashboard
+      target: production
+      # Inlinees dans le bundle au build (Next.js). Un changement d'URL ou de
+      # cle impose donc un rebuild, pas un simple restart.
+      args:
+        NEXT_PUBLIC_API_URL: ${DASHBOARD_API_URL:-https://api.getbuildr.fr}
+        NEXT_PUBLIC_API_KEY: ${API_KEY}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3002:3000"
+    networks:
+      - buildr_prod
 
   db:
     container_name: buildr-db

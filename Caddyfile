@@ -4,11 +4,29 @@
 #
 #   sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
 #
-# Prerequis : api.getbuildr.fr doit resoudre vers l'IP du VPS (DNS direct,
-# sans proxy Cloudflare) et les ports 80/443 doivent etre ouverts (ufw).
+# Prerequis : getbuildr.fr, www.getbuildr.fr, app.getbuildr.fr et
+# api.getbuildr.fr doivent resoudre vers l'IP du VPS (DNS direct, sans proxy
+# Cloudflare) et les ports 80/443 doivent etre ouverts (ufw).
 
 api.getbuildr.fr {
 	# WebSocket (temps reel) + HTTP -> API publiee sur 127.0.0.1:3000
 	reverse_proxy localhost:3000
+	encode gzip zstd
+}
+
+# Vitrine publique. Porte les pages legales (/privacy, /cgu,
+# /mentions-legales) dont les URLs sont exigees par Apple et Google.
+getbuildr.fr {
+	reverse_proxy localhost:3001
+	encode gzip zstd
+}
+
+www.getbuildr.fr {
+	redir https://getbuildr.fr{uri} permanent
+}
+
+# Dashboard web (espace organisation + panel super admin).
+app.getbuildr.fr {
+	reverse_proxy localhost:3002
 	encode gzip zstd
 }
