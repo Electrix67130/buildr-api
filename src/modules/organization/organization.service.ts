@@ -1,6 +1,6 @@
 import { Knex } from 'knex';
 import BaseService from '@/lib/base-service';
-import { OrganizationRow } from './organization.schema';
+import { CreateOrganization, OrganizationRow } from './organization.schema';
 
 class OrganizationService extends BaseService<OrganizationRow> {
   constructor(db: Knex) {
@@ -16,11 +16,19 @@ class OrganizationService extends BaseService<OrganizationRow> {
   }
 
   /** Cree une org + une membership admin pour le createur, set comme org active. Transactionnel. */
-  async createWithAdmin(name: string, createdByUserId: string): Promise<OrganizationRow> {
+  async createWithAdmin(
+    data: CreateOrganization,
+    createdByUserId: string,
+  ): Promise<OrganizationRow> {
     return this.db.transaction(async (trx) => {
-      const [org] = await trx('organization')
-        .insert({ name, created_by: createdByUserId })
-        .returning('*');
+      const insertRow: Record<string, unknown> = { name: data.name, created_by: createdByUserId };
+      // On copie uniquement les valeurs définies pour ne pas écraser les defaults SQL avec null inutile.
+      for (const [key, value] of Object.entries(data)) {
+        if (key === 'name') continue;
+        if (value === undefined) continue;
+        insertRow[key] = value;
+      }
+      const [org] = await trx('organization').insert(insertRow).returning('*');
       await trx('organization_member').insert({
         organization_id: org.id,
         user_id: createdByUserId,

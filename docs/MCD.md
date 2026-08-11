@@ -26,10 +26,16 @@ ORM : Knex 3
 | `role` | enum `user_role` (`admin`, `manager`, `employee`, `client`) | NOT NULL, default `employee` |
 | `company_name` | varchar(200) | nullable |
 | `is_active` | boolean | NOT NULL, default true |
+| `deleted_at` | timestamp | nullable, INDEX — compte supprime par l'utilisateur (anonymise) |
 | `created_at` | timestamp | NOT NULL, default now |
 | `updated_at` | timestamp | NOT NULL, default now |
 
-**Migration :** `20260412120000_create_user.js`
+**Migrations :** `20260412120000_create_user.js`, `20260730210517_add_deleted_at_to_user.js`
+
+**Note sur la suppression** — la ligne n'est jamais supprimee physiquement : `chantier.created_by`,
+`invitation.invited_by` et `organization.created_by` sont en RESTRICT, donc un DELETE echoue des
+que l'utilisateur a cree un chantier. `DELETE /users/me` anonymise la ligne et renseigne
+`deleted_at`. Voir `docs/API.md`.
 
 ---
 

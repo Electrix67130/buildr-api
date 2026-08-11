@@ -12,8 +12,8 @@ declare module 'fastify' {
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
-    payload: { sub: string; email: string; jti?: string };
-    user: { sub: string; email: string; jti?: string };
+    payload: { sub: string; email: string; jti?: string; impersonated_by?: string };
+    user: { sub: string; email: string; jti?: string; impersonated_by?: string };
   }
 }
 
@@ -37,6 +37,11 @@ async function jwtPlugin(fastify: FastifyInstance) {
     // de l'utilisateur. Une nouvelle connexion ailleurs change le current_session_id et
     // invalide donc tous les anciens tokens. On cache le current_session_id en memoire (TTL 30s)
     // pour eviter une lecture BDD a chaque requete.
+    // Les tokens d'impersonation sont emis par un super admin, durent 30 min et ne
+    // sont rattaches a aucune session de l'utilisateur cible : on les exempte du
+    // controle single-session (sinon ils seraient rejetes faute de jti).
+    if (request.user?.impersonated_by) return;
+
     const tokenJti = request.user?.jti;
     if (!tokenJti) {
       return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: 'Token without session id' });

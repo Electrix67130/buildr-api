@@ -56,7 +56,7 @@ async function websocketPlugin(fastify: FastifyInstance) {
       fastify.log.info({ userId }, 'WS disconnected');
     });
 
-    socket.on('error', (err) => {
+    socket.on('error', (err: Error) => {
       fastify.log.error({ err, userId }, 'WS error');
     });
 

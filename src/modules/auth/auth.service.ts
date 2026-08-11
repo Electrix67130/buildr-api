@@ -61,8 +61,15 @@ class AuthService {
     // If no invitation, create a new organization for this user (they become admin of it)
     if (!organizationId) {
       const orgName = data.company_name || `${data.first_name} ${data.last_name}`;
+      const orgPayload: Record<string, unknown> = { name: orgName };
+      if (data.organization) {
+        for (const [key, value] of Object.entries(data.organization)) {
+          if (value === undefined) continue;
+          orgPayload[key] = value;
+        }
+      }
       const [org] = await this.fastify.db('organization')
-        .insert({ name: orgName })
+        .insert(orgPayload)
         .returning('id');
       organizationId = org.id;
       // New standalone accounts are always admins of their own organization

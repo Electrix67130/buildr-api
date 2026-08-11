@@ -1,0 +1,194 @@
+BUILDR — COÛTS ET DOCUMENTS POUR LE LANCEMENT
+==============================================
+
+Ce document résume ce qu'il faut prévoir pour lancer Buildr :
+combien ça va coûter, et quels papiers il faut avoir prêts.
+
+
+
+1. COMBIEN ÇA VA COÛTER
+=======================
+
+Il y a deux types de dépenses :
+  - les dépenses ponctuelles (on les paie une fois, ou une fois par an)
+  - les dépenses mensuelles (elles dépendent du nombre d'utilisateurs).
+
+
+1.1 Dépenses ponctuelles (au lancement)
+---------------------------------------
+
+  - Compte Apple pour publier l'app iPhone
+    99 € par an.
+
+  - Compte Google pour publier l'app Android
+    25 €, une seule fois (à vie).
+
+  - Nom de domaine "getbuildr.fr"
+    12 € par an.
+
+  - Logo et identité visuelle de l'app
+    Entre 0 € (si on le fait soi-même) et 3 000 € (si on passe par un
+    graphiste freelance).
+
+  - Mentions légales, politique de confidentialité, conditions générales
+    Entre 0 € (templates gratuits à adapter) et 1 500 € (si on passe
+    par un avocat).
+
+  Total minimum au lancement : environ 136 €.
+  Total confortable au lancement : environ 4 600 €.
+
+
+1.2 Dépenses mensuelles — phase de test (1 entreprise partenaire)
+-----------------------------------------------------------------
+
+  - Serveur où tourne l'application          : 4,50 €
+  - Stockage des photos                      : compris dans le serveur
+  - Sécurité (certificat SSL)                : gratuit
+  - Envoi des emails                         : gratuit (jusqu'à 3 000/mois)
+  - Compte Apple (lissé sur l'année)         : 8 €
+  - Build des apps mobiles                   : gratuit
+
+  TOTAL : environ 13 € par mois.
+
+
+1.3 Dépenses mensuelles — phase croissance (10 à 50 entreprises)
+----------------------------------------------------------------
+
+  - Serveur plus puissant                    : 30 €
+  - Stockage cloud des photos                : 5 €
+  - Sauvegardes externes                     : 3 €
+  - Envoi des emails                         : 0 à 20 € selon le volume
+  - Compte Apple (lissé)                     : 8 €
+  - Surveillance du service                  : gratuit
+
+  TOTAL : environ 50 à 70 € par mois.
+
+
+1.4 Dépenses mensuelles — phase mature (100+ entreprises)
+---------------------------------------------------------
+
+  - Hébergement professionnel de l'API       : 30 à 60 €
+  - Base de données professionnelle          : 20 à 40 €
+  - Stockage cloud des photos                : 15 à 30 €
+  - Hébergement du site web et du dashboard  : 20 €
+  - Envoi des emails (gros volume)           : 20 à 50 €
+  - Compte Apple (lissé)                     : 8 €
+  - Surveillance professionnelle             : 0 à 30 €
+
+  TOTAL : environ 150 à 250 € par mois.
+
+
+1.5 À quel moment c'est rentable ?
+----------------------------------
+
+Le tarif prévu est de 10 € HT par membre facturable par mois.
+
+  - 3 utilisateurs facturés     →  30 € de revenus,  13 € de coûts.
+                                    On est déjà rentable.
+
+  - 10 utilisateurs facturés    →  100 € de revenus,  13 € de coûts.
+                                    Marge brute :  87 € par mois.
+
+  - 100 utilisateurs facturés   →  1 000 € de revenus,  70 € de coûts.
+                                    Marge brute :  930 € par mois.
+
+  - 500 utilisateurs facturés   →  5 000 € de revenus,  250 € de coûts.
+                                    Marge brute :  4 750 € par mois.
+
+À retenir : dès la troisième personne payante, l'application est
+rentable. Au-delà, presque tout le revenu devient de la marge.
+
+
+
+2. LES DOCUMENTS À PRÉPARER
+===========================
+
+Il y a trois groupes de documents, à préparer dans cet ordre.
+
+
+2.1 Avant de mettre l'app en ligne (obligatoire)
+------------------------------------------------
+
+  - Mentions légales (sur getbuildr.fr/legal)
+    Imposé par la loi française.
+    Effort : 30 minutes, à partir d'un modèle.
+
+  - Politique de confidentialité (sur getbuildr.fr/privacy)
+    Imposé par le RGPD.
+    Exigé aussi par Apple et Google pour publier l'app.
+    Effort : 2 à 3 heures, avec un outil comme Termly ou iubenda (gratuits).
+
+  - Mention "Beta" visible dans l'app et sur le site
+    Pour que les utilisateurs sachent que c'est encore en construction.
+    Effort : 1 ligne.
+
+  - Description de l'app pour les stores
+    Deux paragraphes pour Apple et Google.
+
+  - Captures d'écran de l'app pour les stores
+    5 à 8 captures par store (iPhone et Android).
+    Effort : une demi-journée.
+
+  - Icône de l'app en 1024×1024 pixels
+    Effort : 1 heure (Figma, Canva, ou un graphiste).
+
+  - Compte de démonstration pour Apple
+    Apple impose qu'un de ses testeurs puisse se connecter à l'app.
+    Il faut donc créer un compte "Buildr Demo" avec quelques chantiers
+    et photos factices.
+    Effort : 30 minutes.
+
+
+2.2 Avant d'encaisser le premier euro
+-------------------------------------
+
+  - Conditions générales de vente (CGV/CGU)
+    Effort : une journée avec un modèle, 3 à 5 pages.
+
+  - Mandat de prélèvement / acceptation de paiement
+    Fourni automatiquement par Stripe au moment du paiement.
+
+  - Factures conformes (TVA, mentions légales)
+    Stripe s'en occupe à 90 %.
+
+
+2.3 Quand l'activité grossit (à anticiper)
+------------------------------------------
+
+  - DPA (accord sur le traitement des données)
+    À fournir quand un gros client le demande.
+    Effort : 1 journée avec un modèle.
+
+  - Registre des traitements RGPD
+    Obligatoire au-delà de 250 employés ou si traitement à risque.
+
+  - Étude d'impact RGPD (DPIA)
+    Pour les données sensibles. Pas applicable au BTP.
+
+  - Délégué à la protection des données (DPO)
+    Idem, pas applicable.
+
+  - Assurance responsabilité civile professionnelle
+    Recommandée dès qu'il y a des clients payants.
+    Coût : 300 à 800 € par an.
+
+
+2.4 Un mot de protection pour la phase test
+-------------------------------------------
+
+Pendant les premiers mois, avec les entreprises partenaires, il faut
+signer un petit accord d'une page qui dit en substance :
+
+    Le logiciel Buildr est en phase beta. Il est fourni "tel quel",
+    sans garantie de bon fonctionnement. Le partenaire accepte que
+    des bugs ou des pertes de données peuvent survenir, et s'engage
+    à ne pas y stocker de données critiques sans sauvegarde externe.
+    L'engagement dure 6 mois et peut être résilié à tout moment par
+    chacune des parties, sans frais ni pénalité.
+
+C'est ce qu'on appelle un "Design Partner Agreement". Cela protège
+en cas de problème technique pendant la phase de test.
+
+
+
+=== FIN DU DOCUMENT ===

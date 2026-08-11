@@ -23,8 +23,23 @@ async function errorHandler(fastify: FastifyInstance) {
       });
     }
 
-    // Unknown errors → 500
+    // Unknown errors → 500. On log dans pino ET dans error_log (Sentry maison).
     request.log.error(error);
+    // Fire-and-forget : on ne bloque pas la réponse sur le insert DB.
+    void fastify
+      .db('error_log')
+      .insert({
+        level: 'error',
+        message: error.message || 'Unknown error',
+        stack: error.stack ?? null,
+        route: request.url,
+        method: request.method,
+        user_id: (request.user as { sub?: string } | undefined)?.sub ?? null,
+        status_code: 500,
+        request_id: request.id,
+      })
+      .catch((dbErr) => fastify.log.error({ err: dbErr }, 'Failed to write error_log'));
+
     return reply.code(500).send({
       statusCode: 500,
       error: 'Internal Server Error',

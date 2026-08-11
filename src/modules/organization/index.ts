@@ -33,7 +33,7 @@ export default fp(
     // POST /organizations — cree une nouvelle organisation, le createur en devient admin et la set active
     fastify.post('/organizations', { preHandler: [fastify.authenticate] }, async (request, reply) => {
       const data = createOrganizationSchema.parse(request.body);
-      const created = await service.createWithAdmin(data.name, request.user.sub);
+      const created = await service.createWithAdmin(data, request.user.sub);
       return reply.code(201).send(created);
     });
 

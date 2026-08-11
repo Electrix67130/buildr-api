@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import { z } from 'zod';
 import UserService from './user.service';
-import { updateUserSchema } from './user.schema';
+import { updateUserSchema, deleteAccountSchema } from './user.schema';
 import { getUserOrganizationId } from '@/lib/org-scope';
 import { getActiveMembership } from '@/lib/active-membership';
 
@@ -131,6 +131,14 @@ export default fp(
 
       const { password_hash: _, ...safeUser } = user;
       return safeUser;
+    });
+
+    // DELETE /users/me — suppression de son propre compte (exigence Apple 5.1.1(v)).
+    // Declaree avant /users/:id : le segment statique doit primer sur le parametre.
+    fastify.delete('/users/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+      const { password } = deleteAccountSchema.parse(request.body);
+      await service.deleteOwnAccount(request.user.sub, password);
+      return reply.code(204).send();
     });
 
     // DELETE /users/:id — admin only

@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import { z } from 'zod';
 import ChantierViewService from './chantier-view.service';
-import { markViewedSchema } from './chantier-view.schema';
+import { markViewedSchema, markItemViewedSchema } from './chantier-view.schema';
 
 const unreadQuerySchema = z.object({
   chantier_id: z.string().uuid(),
@@ -15,6 +15,14 @@ export default fp(
     fastify.post('/chantier-views', { preHandler: [fastify.authenticate] }, async (request, reply) => {
       const { chantier_id, tab } = markViewedSchema.parse(request.body);
       await service.markViewed(request.user.sub, chantier_id, tab);
+      return reply.code(204).send();
+    });
+
+    // POST /chantier-views/item — mark a specific step / emergency as viewed
+    // (clears its per-item dot without touching the tab-level last_viewed_at)
+    fastify.post('/chantier-views/item', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+      const { item_type, item_id } = markItemViewedSchema.parse(request.body);
+      await service.markItemViewed(request.user.sub, item_type, item_id);
       return reply.code(204).send();
     });
 

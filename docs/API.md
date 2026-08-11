@@ -110,7 +110,36 @@ Reponse paginee :
 | GET | `/users/search?q=xxx` | JWT | Recherche par nom/email/entreprise |
 | POST | `/users` | JWT | Creer |
 | PATCH | `/users/:id` | JWT | Modifier |
-| DELETE | `/users/:id` | JWT | Supprimer |
+| DELETE | `/users/me` | JWT | Supprimer son propre compte (voir ci-dessous) |
+| DELETE | `/users/:id` | JWT | Supprimer (admin uniquement) |
+
+### DELETE /users/me — Suppression de son compte
+
+Exige par l'App Store (guideline 5.1.1(v)) : toute app permettant la creation de compte
+doit permettre sa suppression depuis l'app.
+
+**Body** : `{ "password": "..." }` — le mot de passe est redemande pour qu'un token vole
+ne suffise pas a detruire un compte.
+
+**Reponses**
+| Code | Cas |
+|---|---|
+| 204 | Compte supprime |
+| 401 | Mot de passe incorrect |
+| 404 | Compte inexistant ou deja supprime |
+| 409 | L'utilisateur est le dernier admin d'une organisation qui compte encore des membres |
+
+**Comportement** — la ligne `user` n'est pas supprimee physiquement : plusieurs FK sont en
+RESTRICT (`chantier.created_by`, `invitation.invited_by`, `organization.created_by`), un
+DELETE echouerait des que l'utilisateur a cree un chantier. Elle est **anonymisee** :
+`email` neutralise, `first_name`/`last_name` remplaces, `phone`/`avatar_url`/`company_name`
+vides, `password_hash` rendu invalide, `is_active` a false, `deleted_at` horodate.
+
+Sont **supprimes** : `refresh_token`, `push_token`, `calendar_integration`,
+`organization_member`, `chantier_member`, `chantier_template_member`, `team_member`.
+
+Sont **conserves** : chantiers, photos, documents et messages crees — ils appartiennent a
+l'organisation et apparaissent desormais sous « Compte supprime ».
 
 ### GET /users — Visibilite
 

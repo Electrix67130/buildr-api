@@ -6,6 +6,19 @@ import { getActiveMembership } from '@/lib/active-membership';
 class ChantierViewService {
   constructor(private db: Knex) {}
 
+  /** Upsert : marque un item précis (étape, urgence) comme vu maintenant. */
+  async markItemViewed(userId: string, itemType: 'step' | 'emergency', itemId: string): Promise<void> {
+    await this.db('chantier_item_view')
+      .insert({
+        user_id: userId,
+        item_type: itemType,
+        item_id: itemId,
+        last_viewed_at: this.db.fn.now(),
+      })
+      .onConflict(['user_id', 'item_type', 'item_id'])
+      .merge({ last_viewed_at: this.db.fn.now() });
+  }
+
   /** Upsert : marque un onglet comme vu maintenant. */
   async markViewed(userId: string, chantierId: string, tab: Tab): Promise<void> {
     await this.db('chantier_view')
@@ -34,32 +47,66 @@ class ChantierViewService {
    *    (le filtrage cote API restreint deja l'acces a ces docs uniquement).
    */
   async unreadCounts(userId: string, chantierId: string): Promise<UnreadCounts> {
-    const [perms, membership, views] = await Promise.all([
+    const [perms, membership, views, itemViews] = await Promise.all([
       getUserPermissions(this.db, userId, chantierId),
       getActiveMembership(this.db, userId),
       this.db('chantier_view')
         .where({ user_id: userId, chantier_id: chantierId })
         .select('tab', 'last_viewed_at') as Promise<{ tab: Tab; last_viewed_at: string }[]>,
+      this.db('chantier_item_view')
+        .where({ user_id: userId })
+        .select('item_type', 'item_id', 'last_viewed_at') as Promise<
+        { item_type: string; item_id: string; last_viewed_at: string }[]
+      >,
     ]);
     const seen = new Map<Tab, string>();
     for (const v of views) seen.set(v.tab, v.last_viewed_at);
-
     const lastSeen = (tab: Tab) => seen.get(tab) ?? '1970-01-01';
+
+    // Map: item_id (step ou emergency) -> last_viewed_at quand le user a ouvert CET item.
+    // Permet de masquer la pastille d'une étape spécifique quand on l'ouvre, sans toucher
+    // au last_viewed_at global de comments_steps.
+    const itemSeen = new Map<string, string>();
+    for (const v of itemViews) itemSeen.set(`${v.item_type}:${v.item_id}`, v.last_viewed_at);
 
     const isGestionnaireReseau = membership?.role === 'gestionnaire_reseau';
 
     // Discussions : la table `comment` contient les messages generaux (step_id IS NULL)
-    // et les messages d'etape (step_id IS NOT NULL). On gate chaque categorie par sa perm.
+    // et les messages d'etape (step_id IS NOT NULL). Chaque sous-onglet est compte
+    // independamment pour qu'on puisse afficher une pastille par sous-onglet cote mobile.
     let commentsCount = 0;
-    if (perms.view_comments || perms.view_steps) {
-      const q = this.db('comment')
+    if (perms.view_comments) {
+      const [row] = (await this.db('comment')
         .where({ chantier_id: chantierId })
+        .whereNull('step_id')
         .where('created_at', '>', lastSeen('comments'))
-        .whereNot('author_id', userId);
-      if (perms.view_comments && !perms.view_steps) q.whereNull('step_id');
-      else if (!perms.view_comments && perms.view_steps) q.whereNotNull('step_id');
-      const [row] = (await q.count('* as count')) as { count: string }[];
+        .whereNot('author_id', userId)
+        .count('* as count')) as { count: string }[];
       commentsCount = parseInt(row.count, 10);
+    }
+
+    let commentsStepsCount = 0;
+    let unreadStepIds: string[] = [];
+    if (perms.view_steps) {
+      // On récupère TOUS les commentaires d'étape postés par d'autres après le
+      // last_viewed_at global. Puis on filtre côté JS pour exclure ceux qui sont
+      // ANTÉRIEURS à la dernière ouverture de leur step (chantier_item_view).
+      // Le badge sur une étape disparaît donc quand on ouvre CETTE étape précise.
+      const rows = (await this.db('comment')
+        .where({ chantier_id: chantierId })
+        .whereNotNull('step_id')
+        .where('created_at', '>', lastSeen('comments_steps'))
+        .whereNot('author_id', userId)
+        .select('step_id', 'created_at')) as { step_id: string; created_at: string }[];
+
+      const countByStep = new Map<string, number>();
+      for (const r of rows) {
+        const stepLastSeen = itemSeen.get(`step:${r.step_id}`);
+        if (stepLastSeen && new Date(r.created_at) <= new Date(stepLastSeen)) continue;
+        countByStep.set(r.step_id, (countByStep.get(r.step_id) ?? 0) + 1);
+      }
+      unreadStepIds = [...countByStep.keys()];
+      commentsStepsCount = [...countByStep.values()].reduce((s, n) => s + n, 0);
     }
 
     let photosCount = 0;
@@ -87,30 +134,88 @@ class ChantierViewService {
 
     // Urgences : visibles a tous les membres du chantier sans condition (cf. canCreateEmergency
     // dans chantier-emergency : la lecture n'est gatee que sur isChantierMember).
-    // On compte les nouvelles urgences ET les commentaires sur urgences (qui appartiennent
-    // au meme onglet UI), pour que la pastille s'incremente quand quelqu'un repond a une
-    // urgence existante.
-    const [emergenciesRow, emergencyCommentsRow] = await Promise.all([
-      this.db('chantier_emergency')
-        .where({ chantier_id: chantierId })
-        .where('created_at', '>', lastSeen('emergencies'))
-        .whereNot('created_by', userId)
-        .count('* as count') as Promise<{ count: string }[]>,
-      this.db('emergency_comment')
-        .join('chantier_emergency', 'emergency_comment.emergency_id', 'chantier_emergency.id')
-        .where('chantier_emergency.chantier_id', chantierId)
-        .where('emergency_comment.created_at', '>', lastSeen('emergencies'))
-        .whereNot('emergency_comment.author_id', userId)
-        .count('* as count') as Promise<{ count: string }[]>,
+    // Decoupage par sous-onglet :
+    //   - `emergencies`        = incidents externes uniquement (type=emergency)
+    //   - `emergencies_claim`  = reclamations (type=claim)
+    // On compte aussi les commentaires sur urgences, en les attachant au sous-onglet
+    // de leur urgence-parent.
+    // Le "type" emergency/claim n'est PAS stocké en colonne : il se déduit du rôle
+    // du créateur sur ce chantier (member_role === 'client' → 'claim', sinon 'emergency').
+    // On reproduit cette logique en SQL via un LEFT JOIN sur chantier_member, puis
+    // on filtre par type.
+    const buildEmergencyAggregate = async (type: 'emergency' | 'claim', tabKey: Tab) => {
+      const since = lastSeen(tabKey);
+      const typeFilter =
+        type === 'claim'
+          ? "chantier_member.role = 'client'"
+          : "(chantier_member.role IS NULL OR chantier_member.role != 'client')";
+
+      const [newRows, commentRows] = await Promise.all([
+        this.db('chantier_emergency')
+          .leftJoin('chantier_member', function () {
+            this.on('chantier_member.user_id', '=', 'chantier_emergency.created_by').andOn(
+              'chantier_member.chantier_id',
+              '=',
+              'chantier_emergency.chantier_id',
+            );
+          })
+          .where('chantier_emergency.chantier_id', chantierId)
+          .whereRaw(typeFilter)
+          .where('chantier_emergency.created_at', '>', since)
+          .whereNot('chantier_emergency.created_by', userId)
+          .select('chantier_emergency.id', 'chantier_emergency.created_at') as Promise<
+          { id: string; created_at: string }[]
+        >,
+        this.db('emergency_comment')
+          .join('chantier_emergency', 'emergency_comment.emergency_id', 'chantier_emergency.id')
+          .leftJoin('chantier_member', function () {
+            this.on('chantier_member.user_id', '=', 'chantier_emergency.created_by').andOn(
+              'chantier_member.chantier_id',
+              '=',
+              'chantier_emergency.chantier_id',
+            );
+          })
+          .where('chantier_emergency.chantier_id', chantierId)
+          .whereRaw(typeFilter)
+          .where('emergency_comment.created_at', '>', since)
+          .whereNot('emergency_comment.author_id', userId)
+          .select('chantier_emergency.id as emergency_id', 'emergency_comment.created_at') as Promise<
+          { emergency_id: string; created_at: string }[]
+        >,
+      ]);
+
+      // Filtre côté JS : si l'item a été ouvert via chantier_item_view APRÈS la création
+      // du contenu non-lu, on l'exclut. Le badge disparaît quand on ouvre l'urgence.
+      const ids = new Set<string>();
+      let totalCount = 0;
+      for (const r of newRows) {
+        const seenAt = itemSeen.get(`emergency:${r.id}`);
+        if (seenAt && new Date(r.created_at) <= new Date(seenAt)) continue;
+        ids.add(r.id);
+        totalCount += 1;
+      }
+      for (const r of commentRows) {
+        const seenAt = itemSeen.get(`emergency:${r.emergency_id}`);
+        if (seenAt && new Date(r.created_at) <= new Date(seenAt)) continue;
+        ids.add(r.emergency_id);
+        totalCount += 1;
+      }
+      return { count: totalCount, ids: [...ids] };
+    };
+    const [extAgg, claimAgg] = await Promise.all([
+      buildEmergencyAggregate('emergency', 'emergencies'),
+      buildEmergencyAggregate('claim', 'emergencies_claim'),
     ]);
-    const emergenciesCount =
-      parseInt(emergenciesRow[0].count, 10) + parseInt(emergencyCommentsRow[0].count, 10);
 
     return {
       comments: commentsCount,
+      comments_steps: commentsStepsCount,
       photos: photosCount,
       documents: documentsCount,
-      emergencies: emergenciesCount,
+      emergencies: extAgg.count,
+      emergencies_claim: claimAgg.count,
+      unread_step_ids: unreadStepIds,
+      unread_emergency_ids: [...extAgg.ids, ...claimAgg.ids],
     };
   }
 
@@ -164,7 +269,13 @@ class ChantierViewService {
         return {
           chantier_id: c.id,
           organization_id: c.organization_id,
-          total: u.comments + u.photos + u.documents + u.emergencies,
+          total:
+            u.comments +
+            u.comments_steps +
+            u.photos +
+            u.documents +
+            u.emergencies +
+            u.emergencies_claim,
         };
       }),
     );
