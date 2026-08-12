@@ -120,15 +120,16 @@ d'installation d'autres apps, activité dans l'app à des fins d'analyse.
 ### Note sur la position
 
 L'app demande la position **uniquement** au moment où l'utilisateur prend une
-photo d'urgence, en premier plan, avec `Accuracy.Balanced` (~100 m). Aucun suivi
-en arrière-plan. Le manifeste déclare toutefois `ACCESS_FINE_LOCATION`, ce qui
-impose de déclarer « Position exacte ».
+photo d'urgence, en premier plan, avec `Accuracy.High` (~10 m). Aucun suivi en
+arrière-plan, aucune position enregistrée en dehors de ce geste.
 
-*Piste d'amélioration* : `Accuracy.Balanced` fonctionne avec la seule permission
-`ACCESS_COARSE_LOCATION`. Retirer `ACCESS_FINE_LOCATION` permettrait de déclarer
-« Position approximative », moins sensible aux yeux de Google et de
-l'utilisateur. À arbitrer selon la précision voulue pour le repérage des
-urgences sur un chantier.
+La précision de 10 m est un choix produit assumé : sur un chantier, il faut
+pouvoir retrouver le point exact du danger, pas seulement la parcelle. Elle
+impose `ACCESS_FINE_LOCATION` et donc la déclaration « **Position exacte** ».
+
+La justification à donner si Google la demande : signalement d'incident de
+sécurité sur chantier, géolocalisation ponctuelle déclenchée par l'utilisateur,
+sans collecte continue.
 
 ---
 
