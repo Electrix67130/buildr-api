@@ -189,6 +189,80 @@ Deux options :
 
 ---
 
+## 5 bis. Google Play — marche à suivre détaillée
+
+Ordre à respecter : la console verrouille la publication tant que la section
+« Contenu de l'application » n'est pas complète à 100 %.
+
+### A. Compte Google de la société
+Créer un compte Google dédié (par ex. `dev@pgterrassement.fr` si la messagerie
+le permet, sinon un compte Gmail réservé à cet usage). Ne pas utiliser un compte
+personnel : il devient propriétaire de la fiche Play et de ses clés de signature.
+
+### B. Inscription Play Console — 25 €
+`play.google.com/console/signup`. Choisir **compte d'organisation**, pas personnel.
+
+À renseigner : raison sociale PG TERRASSEMENT, D-U-N-S `276898250`, adresse
+34 B rue d'Alsace 88000 Deyvillers, téléphone, site `pgterrassement.fr`.
+Le **nom du développeur affiché publiquement peut être « Buildr »** — il est
+libre et modifiable à tout moment.
+
+À noter : l'obligation de test fermé avec 12 testeurs pendant 14 jours
+consécutifs avant l'accès à la production est documentée pour les **comptes
+personnels créés après le 13 novembre 2023**. Les comptes d'organisation ne sont
+pas visés par cet article — à confirmer dans le tableau de bord « Accès à la
+production » de la console, car cela conditionne deux semaines de délai.
+
+### C. Vérifications
+Deux vérifications distinctes, à lancer dès la création du compte :
+- **identité du représentant autorisé** : pièce d'identité d'Alexis PARISOT, qui
+  doit figurer sur l'immatriculation de la société ;
+- **organisation** : Kbis ou équivalent, et justificatif de l'adresse physique
+  (pas une adresse de domiciliation d'agent).
+
+Obligatoire à partir de **septembre 2026**.
+
+### D. Créer l'app
+« Toutes les applications » → **Créer une application**.
+Nom `Buildr`, langue par défaut français, type Application, gratuite.
+Le nom du package `fr.getbuildr.app` sera fixé par le premier AAB uploadé et
+**ne pourra plus jamais changer**.
+
+### E. Section « Contenu de l'application »
+Chaque ligne doit passer au vert :
+- **Politique de confidentialité** : `https://getbuildr.fr/privacy`
+- **Accès à l'application** : l'app exige une connexion → fournir les
+  identifiants du compte de démonstration
+- **Annonces** : aucune publicité
+- **Classification du contenu** : questionnaire, catégorie utilitaire/entreprise
+- **Public cible** : 18 ans et plus, app non destinée aux enfants
+- **Sécurité des données** : déclarer identité, coordonnées, photos,
+  localisation approximative, contenu utilisateur — avec chiffrement en transit
+  et possibilité de suppression du compte (`DELETE /users/me` existe)
+- **Application gouvernementale** : non
+- **Fonctionnalités financières** : aucune
+
+### F. Fiche Play Store
+- Icône 512×512 PNG
+- Feature graphic 1024×500
+- Au moins 2 captures téléphone (viser 5 à 8)
+- Description courte : 80 caractères max
+- Description longue : 4 000 caractères max
+- Catégorie : Entreprise
+
+### G. Premier dépôt
+1. Récupérer l'AAB produit par `eas build -p android --profile production`
+2. **Test interne** → Créer une release → uploader l'AAB **à la main**
+   (l'API Google refuse de créer la première release d'une app)
+3. S'ajouter comme testeur interne, installer via le lien, valider sur un vrai
+   téléphone : connexion, création de chantier, upload photo, notification push
+4. Une fois les vérifications du compte terminées, promouvoir en **Production**
+
+Les mises à jour suivantes passeront par `eas submit -p android --latest` avec la
+clé de compte de service renseignée dans `eas.json`.
+
+---
+
 ## 6. Transfert vers la structure dédiée (plus tard)
 
 Le transfert d'app entre comptes Apple est prévu et conserve le **bundle ID**,
