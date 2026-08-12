@@ -30,7 +30,9 @@ const envSchema = z.object({
   API_PUBLIC_URL: z.string().default(''),
   STORAGE_MODE: z.enum(['local', 's3']).default('local'),
   S3_BUCKET: z.string().default(''),
-  S3_REGION: z.string().default('eu-west-3'),
+  S3_REGION: z.string().default('fr-par'),
+  /** Endpoint S3. Obligatoire hors AWS (Scaleway : https://s3.fr-par.scw.cloud). */
+  S3_ENDPOINT: z.string().default(''),
   S3_ACCESS_KEY: z.string().default(''),
   S3_SECRET_KEY: z.string().default(''),
   GOOGLE_CLIENT_ID: z.string().default(''),

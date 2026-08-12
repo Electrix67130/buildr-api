@@ -13,6 +13,7 @@ import errorHandler from './plugins/error-handler';
 import apiKey from './plugins/api-key';
 import jwtPlugin from './plugins/jwt';
 import uploadPlugin from './plugins/upload';
+import { UPLOAD_DIR } from './lib/storage';
 import websocketPlugin from './plugins/websocket';
 
 interface AppOptions extends FastifyServerOptions {
@@ -46,7 +47,11 @@ function buildApp(opts: AppOptions = {}) {
 
   // File handling
   app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
-  app.register(fastifyStatic, { root: path.join(__dirname, '..', 'uploads'), prefix: '/uploads/', decorateReply: true });
+  // serve: false — on ne veut que reply.sendFile(), pas de route publique. Le
+  // prefixe /uploads/ exposait tous les fichiers derriere la seule cle d'API,
+  // laquelle est embarquee en clair dans le bundle mobile : cela court-circuitait
+  // les URLs signees de /files. Personne ne l'utilisait.
+  app.register(fastifyStatic, { root: UPLOAD_DIR, serve: false, decorateReply: true });
 
   // Infrastructure plugins
   app.register(database);

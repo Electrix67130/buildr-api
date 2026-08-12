@@ -2,16 +2,11 @@ import fp from 'fastify-plugin';
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { randomUUID, createHmac } from 'crypto';
 import path from 'path';
-import fs from 'fs';
 import { z } from 'zod';
 import env from '@/config/env';
+import { putFile, fileExists, getDownloadUrl } from '@/lib/storage';
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 
 /** Generate a signed token: filename + expiry, signed with JWT_SECRET */
 function generateFileToken(filename: string): { token: string; expires: number } {
@@ -40,9 +35,8 @@ async function uploadPlugin(fastify: FastifyInstance) {
   fastify.get('/files/token/:filename', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { filename } = z.object({ filename: z.string().min(1) }).parse(request.params);
     const safeName = path.basename(filename);
-    const filePath = path.join(UPLOAD_DIR, safeName);
 
-    if (!fs.existsSync(filePath)) {
+    if (!(await fileExists(safeName))) {
       return reply.notFound('File not found');
     }
 
@@ -61,9 +55,15 @@ async function uploadPlugin(fastify: FastifyInstance) {
       return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'Token expired or invalid' });
     }
 
-    const filePath = path.join(UPLOAD_DIR, safeName);
-    if (!fs.existsSync(filePath)) {
+    if (!(await fileExists(safeName))) {
       return reply.notFound('File not found');
+    }
+
+    // En mode s3, le fichier ne transite pas par l'API : on redirige vers une
+    // URL presignee de meme duree de vie que le token.
+    const downloadUrl = await getDownloadUrl(safeName);
+    if (downloadUrl) {
+      return reply.redirect(downloadUrl, 302);
     }
 
     return reply.sendFile(safeName);
@@ -78,21 +78,17 @@ async function uploadPlugin(fastify: FastifyInstance) {
 
     const ext = path.extname(data.filename) || '';
     const storedName = `${randomUUID()}${ext}`;
-    const filePath = path.join(UPLOAD_DIR, storedName);
 
-    const writeStream = fs.createWriteStream(filePath);
-    await new Promise<void>((resolve, reject) => {
-      data.file.pipe(writeStream);
-      data.file.on('end', resolve);
-      data.file.on('error', reject);
-    });
-
-    const stat = fs.statSync(filePath);
+    // toBuffer() applique la limite de taille de @fastify/multipart (10 Mo) et
+    // leve si elle est depassee, la ou le pipe vers un writeStream ecrivait un
+    // fichier tronque sans rien signaler.
+    const buffer = await data.toBuffer();
+    await putFile(storedName, buffer, data.mimetype);
 
     return reply.code(201).send({
       url: `${env.API_PUBLIC_URL}/files/${storedName}`,
       original_name: data.filename,
-      file_size: stat.size,
+      file_size: buffer.length,
       mime_type: data.mimetype,
     });
   });

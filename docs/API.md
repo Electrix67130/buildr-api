@@ -344,6 +344,54 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 
 ---
 
+## Fichiers (photos et documents)
+
+| Methode | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/upload` | JWT | Envoie un fichier, renvoie son URL permanente |
+| GET | `/files/token/:filename` | JWT | Regenere une URL signee pour un fichier |
+| GET | `/files/:filename?t=xxx` | token signe | Telecharge le fichier |
+
+### POST /upload
+
+Multipart, champ fichier unique, **10 Mo maximum**. Au-dela, la requete est
+rejetee — le fichier n'est jamais ecrit tronque.
+
+**Reponse 201 :**
+```json
+{
+  "url": "https://api.getbuildr.fr/files/<uuid>.jpg",
+  "original_name": "photo.jpg",
+  "file_size": 412903,
+  "mime_type": "image/jpeg"
+}
+```
+
+L'`url` renvoyee est **permanente** : c'est elle qu'on stocke en base
+(`photo.url`, `document.url`, `chantier_emergency.photo_url`). Elle n'est pas
+telechargeable directement.
+
+### Acces aux fichiers
+
+Les routes de liste (`/photos`, `/documents`, `/emergencies`) reecrivent les
+URLs stockees en **URLs signees valables 5 minutes**, via un token HMAC. Un
+client qui garde une URL en cache doit la regenerer avec
+`GET /files/token/:filename` une fois le delai passe.
+
+`/files/:filename` est la seule famille de routes accessible **sans cle d'API** :
+le token signe fait foi. Cela permet de l'utiliser directement dans une balise
+image.
+
+**Stockage** — pilote par `STORAGE_MODE` :
+- `local` : disque du serveur, le fichier est servi par l'API ;
+- `s3` : Scaleway Object Storage, l'API repond `302` vers une URL presignee de
+  meme duree de vie.
+
+Le format de l'URL stockee est identique dans les deux modes : changer de mode
+n'invalide aucune ligne existante.
+
+---
+
 ## Photos
 
 | Methode | Route | Auth | Description |
