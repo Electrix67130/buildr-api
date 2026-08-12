@@ -47,7 +47,7 @@ async function uploadPlugin(fastify: FastifyInstance) {
     }
 
     const { token } = generateFileToken(safeName);
-    return { url: `${env.APP_URL}/files/${safeName}?t=${token}` };
+    return { url: `${env.API_PUBLIC_URL}/files/${safeName}?t=${token}` };
   });
 
   // GET /files/:filename?t=xxx — serve file if token is valid (no API key needed)
@@ -90,7 +90,7 @@ async function uploadPlugin(fastify: FastifyInstance) {
     const stat = fs.statSync(filePath);
 
     return reply.code(201).send({
-      url: `${env.APP_URL}/files/${storedName}`,
+      url: `${env.API_PUBLIC_URL}/files/${storedName}`,
       original_name: data.filename,
       file_size: stat.size,
       mime_type: data.mimetype,

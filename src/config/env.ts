@@ -20,7 +20,14 @@ const envSchema = z.object({
   SMTP_FROM: z.string().default('noreply@getbuildr.fr'),
   RESEND_API_KEY: z.string().default(''),
   CORS_ORIGINS: z.string().default(''),
+  /** Base publique du dashboard web. Sert aux liens envoyes par email
+   *  (invitations, reinitialisation de mot de passe). */
   APP_URL: z.string().default('http://localhost:3001'),
+  /** Base publique de cette API. Sert a construire les URLs de fichiers
+   *  (photos, documents) : elles doivent pointer vers l'API, pas vers le
+   *  dashboard. A defaut, on retombe sur APP_URL pour ne pas casser les
+   *  installations qui n'ont pas encore la variable. */
+  API_PUBLIC_URL: z.string().default(''),
   STORAGE_MODE: z.enum(['local', 's3']).default('local'),
   S3_BUCKET: z.string().default(''),
   S3_REGION: z.string().default('eu-west-3'),
@@ -34,7 +41,12 @@ const envSchema = z.object({
   CALENDAR_ENCRYPTION_KEY: z.string().default(''),
 });
 
-const env = envSchema.parse(process.env);
+const parsed = envSchema.parse(process.env);
+
+const env = {
+  ...parsed,
+  API_PUBLIC_URL: parsed.API_PUBLIC_URL || parsed.APP_URL,
+};
 
 export type Env = z.infer<typeof envSchema>;
 export default env;

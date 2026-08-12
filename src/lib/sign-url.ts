@@ -13,7 +13,7 @@ export function signFileUrl(fileUrl: string): string {
   const signature = createHmac('sha256', env.JWT_SECRET).update(data).digest('hex');
   const token = Buffer.from(JSON.stringify({ f: filename, e: expires, s: signature })).toString('base64url');
 
-  return `${env.APP_URL}/files/${filename}?t=${token}`;
+  return `${env.API_PUBLIC_URL}/files/${filename}?t=${token}`;
 }
 
 /** Sign all url/thumbnail_url fields in an array of objects */
