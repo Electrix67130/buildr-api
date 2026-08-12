@@ -183,10 +183,42 @@ You** : aucune.
 
 ## 8. Compte de démonstration pour la review
 
-À créer avant la soumission, dans une organisation dédiée « Buildr Demo »
-contenant des données factices — jamais de données d'un partenaire réel.
+**Créé et actif en production** depuis le 13 août 2026.
 
-- Identifiants à transmettre dans les notes de review Apple et dans la rubrique
-  « Accès à l'application » de Google Play.
-- Prévoir 2 ou 3 chantiers avec photos, étapes, documents et discussions, pour
-  que le reviewer voie une app remplie et non des écrans vides.
+```
+demo@getbuildr.fr
+BuildrDemo2026!
+```
+
+À transmettre dans les **notes de review Apple** et dans la rubrique **« Accès à
+l'application »** de Google Play.
+
+L'organisation « Buildr Démo » contient trois chantiers dont un terminé,
+7 étapes et 22 sous-étapes partiellement validées, 5 photos, 3 documents,
+7 messages de discussion et 2 urgences géolocalisées avec leurs réponses.
+Aucune donnée réelle, aucune photo de chantier appartenant à un tiers : les
+visuels sont générés et portent la mention « données de démonstration ».
+
+Trois autres comptes existent pour montrer la gestion des rôles, avec le même
+mot de passe : `chef@demo.getbuildr.fr` (chef de chantier),
+`ouvrier@demo.getbuildr.fr` (ouvrier), `client@demo.getbuildr.fr` (client, membre
+d'un seul chantier et sans accès aux documents ni à l'équipe).
+
+Régénérer les données à tout moment :
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm api npm run seed
+```
+
+Le seed purge l'organisation de démonstration et elle seule avant de la
+reconstruire — aucune organisation réelle n'est touchée.
+
+### Note de review à joindre
+
+> Buildr est un SaaS B2B de gestion de chantiers destiné aux entreprises du
+> bâtiment et des travaux publics. L'inscription se fait sur invitation d'un
+> administrateur d'entreprise ; le compte de démonstration ci-dessus donne accès
+> à une organisation complète avec des données factices. La géolocalisation
+> n'est demandée qu'au moment où l'utilisateur photographie une urgence sur un
+> chantier, jamais en arrière-plan. La suppression du compte est accessible
+> depuis l'onglet Profil.
