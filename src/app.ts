@@ -13,6 +13,7 @@ import errorHandler from './plugins/error-handler';
 import apiKey from './plugins/api-key';
 import jwtPlugin from './plugins/jwt';
 import uploadPlugin from './plugins/upload';
+import signUrlsPlugin from './plugins/sign-urls';
 import { UPLOAD_DIR } from './lib/storage';
 import websocketPlugin from './plugins/websocket';
 
@@ -59,6 +60,7 @@ function buildApp(opts: AppOptions = {}) {
   app.register(apiKey);
   app.register(jwtPlugin);
   app.register(uploadPlugin);
+  app.register(signUrlsPlugin);
   app.register(websocketPlugin);
 
   // Auto-load all modules (each module registers its own routes)

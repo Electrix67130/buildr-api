@@ -3,8 +3,17 @@ import env from '@/config/env';
 
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/** Une URL deja signee porte son token en query string. */
+function isSigned(fileUrl: string): boolean {
+  return fileUrl.includes('?t=') || fileUrl.includes('&t=');
+}
+
 /** Generate a signed URL for a file path like /files/abc-123.pdf */
 export function signFileUrl(fileUrl: string): string {
+  // Idempotent : resigner une URL deja signee produirait un nom de fichier
+  // contenant la query string, donc un 404.
+  if (isSigned(fileUrl)) return fileUrl;
+
   const filename = fileUrl.split('/').pop();
   if (!filename) return fileUrl;
 
@@ -45,4 +54,40 @@ export function signUrlsInList<T extends Record<string, unknown>>(items: T[], fi
 /** Variante pour un objet seul. */
 export function signUrlsIn<T extends Record<string, unknown>>(item: T, fields?: string[]): T {
   return signUrlsInList([item], fields)[0];
+}
+
+/**
+ * Parcourt une reponse et signe toute URL de fichier rencontree, quel que soit
+ * son emplacement ou le nom du champ qui la porte.
+ *
+ * Utilise par le hook global (plugins/sign-urls.ts) : c'est ce qui garantit
+ * qu'aucun module ne peut oublier de signer ses URLs — l'oubli avait rendu
+ * invisibles les photos d'urgence, les avatars et les logos d'organisation.
+ */
+export function signUrlsDeep(payload: unknown, depth = 0): unknown {
+  // Les reponses de l'API sont peu profondes ; la borne evite qu'une structure
+  // cyclique ou inhabituelle ne fasse tourner le parcours indefiniment.
+  if (depth > 6 || payload === null || payload === undefined) return payload;
+
+  if (typeof payload === 'string') {
+    return payload.includes('/files/') ? signFileUrl(payload) : payload;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.map((item) => signUrlsDeep(item, depth + 1));
+  }
+
+  if (typeof payload === 'object') {
+    // On ne touche pas aux objets qui ne sont pas de simples sacs de donnees
+    // (Date, Buffer, streams...) : les serialiser autrement casserait la reponse.
+    if (Object.getPrototypeOf(payload) !== Object.prototype) return payload;
+
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+      out[key] = signUrlsDeep(value, depth + 1);
+    }
+    return out;
+  }
+
+  return payload;
 }
