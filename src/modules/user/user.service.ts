@@ -263,7 +263,8 @@ class UserService extends BaseService<UserRow> {
           // Hash volontairement invalide : aucun mot de passe ne peut le satisfaire.
           password_hash: '!',
           is_active: false,
-          current_session_id: null,
+          current_mobile_session_id: null,
+          current_web_session_id: null,
           active_organization_id: null,
           deleted_at: trx.fn.now(),
           updated_at: trx.fn.now(),

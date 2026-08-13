@@ -24,9 +24,11 @@ async function websocketPlugin(fastify: FastifyInstance) {
     }
 
     let userId: string;
+    let platform: 'mobile' | 'web' | undefined;
     try {
-      const decoded = await fastify.jwt.verify<{ sub: string; jti?: string }>(token);
+      const decoded = await fastify.jwt.verify<{ sub: string; jti?: string; platform?: 'mobile' | 'web' }>(token);
       userId = decoded.sub;
+      platform = decoded.platform;
       // Note : on ne fait PAS la verification single-session ici pour eviter
       // d'avoir a la maintenir sur la duree de vie de la connexion. Les events
       // emis sont eux scoped par chantier_id donc le risque de fuite d'info
@@ -37,7 +39,7 @@ async function websocketPlugin(fastify: FastifyInstance) {
       return;
     }
 
-    addConnection(userId, socket);
+    addConnection(userId, socket, platform);
     fastify.log.info({ userId }, 'WS connected');
 
     // Ping keepalive — empeche le tunnel cloudflared (idle 100s) et les

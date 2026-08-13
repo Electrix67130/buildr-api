@@ -69,9 +69,20 @@ Reponse paginee :
 
 ### POST /auth/login
 
-**Body :** `{ "email": "string", "password": "string" }`
+**Body :** `{ "email": "string", "password": "string", "platform": "mobile" | "web" (optionnel, defaut "web") }`
 
 **Reponse 200 :** meme format que register
+
+**Sessions par plateforme** — chaque plateforme garde sa propre session active.
+Se connecter sur le mobile n'invalide que la precedente session mobile ; le
+dashboard reste ouvert, et inversement. Une seconde connexion sur la MEME
+plateforme invalide la premiere (token rejete avec un 401 « Session expired
+(logged in elsewhere on this device type) », et WebSocket ferme avec le code
+4001).
+
+`/auth/logout` ne coupe egalement que la session de la plateforme d'ou provient
+le token. Les tokens emis avant l'introduction du claim `platform` restent
+acceptes sans controle de session, jusqu'a la prochaine connexion.
 
 ### POST /auth/refresh
 

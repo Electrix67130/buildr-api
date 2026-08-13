@@ -26,6 +26,8 @@ ORM : Knex 3
 | `role` | enum `user_role` (`admin`, `manager`, `employee`, `client`) | NOT NULL, default `employee` |
 | `company_name` | varchar(200) | nullable |
 | `is_active` | boolean | NOT NULL, default true |
+| `current_mobile_session_id` | varchar(64) | nullable — session active de l'app mobile |
+| `current_web_session_id` | varchar(64) | nullable — session active du dashboard |
 | `deleted_at` | timestamp | nullable, INDEX — compte supprime par l'utilisateur (anonymise) |
 | `created_at` | timestamp | NOT NULL, default now |
 | `updated_at` | timestamp | NOT NULL, default now |
@@ -46,9 +48,12 @@ que l'utilisateur a cree un chantier. `DELETE /users/me` anonymise la ligne et r
 | `id` | uuid | PK, default uuid |
 | `user_id` | uuid | NOT NULL, FK -> `user.id` CASCADE |
 | `token` | text | NOT NULL, UNIQUE |
+| `platform` | enum `session_platform` (`mobile`, `web`) | nullable (jetons anterieurs a la separation des sessions) |
 | `created_at` | timestamp | NOT NULL, default now |
 
-**Migration :** `20260412120001_create_refresh_token.js`
+**Index :** `idx_refresh_token_user_platform` (user_id, platform)
+
+**Migrations :** `20260412120001_create_refresh_token.js`, `20260814090000_platform_sessions.js`
 
 ---
 

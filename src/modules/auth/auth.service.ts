@@ -5,7 +5,7 @@ import UserService from '@/modules/user/user.service';
 import { RegisterInput } from './auth.schema';
 import { UserRow } from '@/modules/user/user.schema';
 import env from '@/config/env';
-import { invalidateSessionCache } from '@/lib/session-cache';
+import { invalidateSessionCache, type Platform } from '@/lib/session-cache';
 import { closeUserConnections } from '@/lib/realtime-hub';
 
 const SALT_ROUNDS = 12;
@@ -121,7 +121,7 @@ class AuthService {
       }
     }
 
-    const tokens = await this.generateTokens(user);
+    const tokens = await this.generateTokens(user, data.platform ?? 'web');
     const { password_hash: _, ...safeUser } = user;
 
     return { user: safeUser, ...tokens };
@@ -227,7 +227,7 @@ class AuthService {
     return { message: 'Password has been reset successfully' };
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, platform: Platform = 'web') {
     const user = await this.userService.findByEmail(email);
     if (!user || !user.is_active) {
       throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
@@ -238,14 +238,16 @@ class AuthService {
       throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
     }
 
-    const tokens = await this.generateTokens(user);
+    const tokens = await this.generateTokens(user, platform);
     const { password_hash: _, ...safeUser } = user;
 
     return { user: safeUser, ...tokens };
   }
 
   async refresh(refreshToken: string) {
-    const stored = await this.fastify.db('refresh_token').where({ token: refreshToken }).first();
+    const stored = (await this.fastify.db('refresh_token').where({ token: refreshToken }).first()) as
+      | { id: string; user_id: string; platform: Platform | null }
+      | undefined;
     if (!stored) {
       throw Object.assign(new Error('Invalid refresh token'), { statusCode: 401 });
     }
@@ -258,33 +260,49 @@ class AuthService {
       throw Object.assign(new Error('User not found or inactive'), { statusCode: 401 });
     }
 
-    return this.generateTokens(user);
+    // Le refresh renouvelle la session de la plateforme d'origine du jeton.
+    return this.generateTokens(user, stored.platform ?? 'web');
   }
 
-  async logout(userId: string) {
-    await this.fastify.db('refresh_token').where({ user_id: userId }).del();
-    await this.fastify.db('user').where({ id: userId }).update({ current_session_id: null });
-    invalidateSessionCache(userId);
+  /**
+   * Deconnecte l'utilisateur. Sans plateforme precisee (tokens anterieurs a la
+   * separation des sessions), les deux sont coupees.
+   */
+  async logout(userId: string, platform?: Platform) {
+    const sessionColumns = { mobile: 'current_mobile_session_id', web: 'current_web_session_id' } as const;
+
+    if (platform) {
+      await this.fastify.db('refresh_token').where({ user_id: userId, platform }).del();
+      await this.fastify.db('user').where({ id: userId }).update({ [sessionColumns[platform]]: null });
+    } else {
+      await this.fastify.db('refresh_token').where({ user_id: userId }).del();
+      await this.fastify
+        .db('user')
+        .where({ id: userId })
+        .update({ current_mobile_session_id: null, current_web_session_id: null });
+    }
+
+    invalidateSessionCache(userId, platform);
+    closeUserConnections(userId, 'logout', platform);
   }
 
-  private async generateTokens(user: UserRow) {
+  private async generateTokens(user: UserRow, platform: Platform = 'web') {
     const jti = randomUUID();
+    const sessionColumn = platform === 'mobile' ? 'current_mobile_session_id' : 'current_web_session_id';
 
-    // Single-session enforcement : on stocke le jti comme session active de l'user.
-    // Tout token avec un jti differend sera rejete par le middleware d'auth.
-    // En consequence on supprime aussi tous les anciens refresh tokens (l'autre device
-    // ne pourra plus se rafraichir non plus). On invalide aussi le cache memoire
-    // pour que le kick soit immediat (sinon TTL 30s de latence).
-    await this.fastify.db('user').where({ id: user.id }).update({ current_session_id: jti });
-    await this.fastify.db('refresh_token').where({ user_id: user.id }).del();
-    invalidateSessionCache(user.id);
-    // Ferme toutes les WS de l'ancien device immediatement — le frontend recevra
-    // un close avec code 4001 et declenchera son logout sans attendre la prochaine
-    // requete HTTP.
-    closeUserConnections(user.id, 'session-replaced');
+    // Une session active par plateforme : ce jti devient la session courante pour
+    // CETTE plateforme. Un token portant un autre jti sera rejete par le middleware
+    // d'auth, mais uniquement sur la meme plateforme — se connecter sur le mobile
+    // ne deconnecte plus le dashboard.
+    await this.fastify.db('user').where({ id: user.id }).update({ [sessionColumn]: jti });
+    await this.fastify.db('refresh_token').where({ user_id: user.id, platform }).del();
+    invalidateSessionCache(user.id, platform);
+    // Ferme les WS de l'ancien appareil de cette plateforme — le frontend recoit
+    // un close 4001 et declenche son logout sans attendre la prochaine requete.
+    closeUserConnections(user.id, 'session-replaced', platform);
 
     const accessToken = this.fastify.jwt.sign(
-      { sub: user.id, email: user.email, jti },
+      { sub: user.id, email: user.email, jti, platform },
       { expiresIn: env.JWT_ACCESS_EXPIRES },
     );
 
@@ -292,6 +310,7 @@ class AuthService {
     await this.fastify.db('refresh_token').insert({
       user_id: user.id,
       token: refreshToken,
+      platform,
     });
 
     return { access_token: accessToken, refresh_token: refreshToken };

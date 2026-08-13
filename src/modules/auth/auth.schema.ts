@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/** Plateforme d'origine de la connexion : chacune garde sa propre session. */
+export const platformEnum = z.enum(['mobile', 'web']);
+export type Platform = z.infer<typeof platformEnum>;
+
 export const registerSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(8).max(128),
@@ -9,6 +13,7 @@ export const registerSchema = z.object({
   role: z.enum(['admin', 'employee', 'client']).optional().default('employee'),
   company_name: z.string().max(200).optional(),
   invitation_token: z.string().optional(),
+  platform: platformEnum.optional().default('web'),
 
   // Infos légales de la nouvelle organisation. Ignorées si invitation_token est fourni
   // (l'utilisateur rejoint une orga existante).
@@ -39,6 +44,7 @@ export const updatePasswordSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  platform: platformEnum.optional().default('web'),
 });
 
 export const refreshSchema = z.object({

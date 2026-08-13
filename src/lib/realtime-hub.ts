@@ -1,4 +1,5 @@
 import { Knex } from 'knex';
+import type { Platform } from '@/lib/session-cache';
 import { WebSocket } from 'ws';
 
 /**
@@ -33,13 +34,23 @@ export interface RealtimeEvent {
 
 const connections = new Map<string, Set<WebSocket>>();
 
-export function addConnection(userId: string, ws: WebSocket): void {
+/**
+ * Plateforme d'origine de chaque socket. Stockee a cote plutot que dans la cle
+ * des connexions : les emissions d'evenements ciblent un utilisateur, toutes
+ * plateformes confondues, et n'ont pas a s'en soucier. Seule la fermeture de
+ * session a besoin de distinguer, pour ne pas couper le dashboard quand le
+ * mobile se reconnecte.
+ */
+const socketPlatform = new WeakMap<WebSocket, Platform>();
+
+export function addConnection(userId: string, ws: WebSocket, platform?: Platform): void {
   let set = connections.get(userId);
   if (!set) {
     set = new Set();
     connections.set(userId, set);
   }
   set.add(ws);
+  if (platform) socketPlatform.set(ws, platform);
 }
 
 export function removeConnection(userId: string, ws: WebSocket): void {
@@ -115,18 +126,27 @@ export async function emitToChantier(
 export function closeUserConnections(
   userId: string,
   reason: 'logout' | 'session-replaced' = 'logout',
+  platform?: Platform,
 ): void {
   const set = connections.get(userId);
   if (!set) return;
   const code = reason === 'session-replaced' ? 4001 : 1000;
+
   for (const ws of set) {
+    // Sans plateforme precisee on ferme tout (action d'administration, logout
+    // d'un client anterieur a la separation des sessions). Sinon on ne ferme
+    // que les sockets de la plateforme concernee ; celles d'origine inconnue
+    // sont conservees plutot que coupees a tort.
+    if (platform && socketPlatform.get(ws) !== platform) continue;
     try {
       ws.close(code, reason);
     } catch {
       // ignore
     }
+    set.delete(ws);
   }
-  connections.delete(userId);
+
+  if (set.size === 0) connections.delete(userId);
 }
 
 export function activeUserCount(): number {

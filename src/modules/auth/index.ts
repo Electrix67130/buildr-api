@@ -20,8 +20,8 @@ export default fp(
     });
 
     fastify.post('/auth/login', async (request, reply) => {
-      const { email, password } = loginSchema.parse(request.body);
-      const result = await authService.login(email, password);
+      const { email, password, platform } = loginSchema.parse(request.body);
+      const result = await authService.login(email, password, platform);
       return reply.send(result);
     });
 
@@ -32,7 +32,9 @@ export default fp(
     });
 
     fastify.post('/auth/logout', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-      await authService.logout(request.user.sub);
+      // On ne coupe que la session de la plateforme d'ou vient le token :
+      // se deconnecter du mobile laisse le dashboard ouvert.
+      await authService.logout(request.user.sub, request.user.platform);
       return reply.code(204).send();
     });
 
