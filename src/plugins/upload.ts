@@ -5,6 +5,7 @@ import path from 'path';
 import { z } from 'zod';
 import env from '@/config/env';
 import { putFile, fileExists, getDownloadUrl } from '@/lib/storage';
+import { isImage, isThumbnailable, optimizeImage, generateThumbnail } from '@/lib/image';
 
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -77,18 +78,46 @@ async function uploadPlugin(fastify: FastifyInstance) {
     }
 
     const ext = path.extname(data.filename) || '';
-    const storedName = `${randomUUID()}${ext}`;
+    const uuid = randomUUID();
+    const storedName = `${uuid}${ext}`;
 
     // toBuffer() applique la limite de taille de @fastify/multipart (10 Mo) et
     // leve si elle est depassee, la ou le pipe vers un writeStream ecrivait un
     // fichier tronque sans rien signaler.
-    const buffer = await data.toBuffer();
-    await putFile(storedName, buffer, data.mimetype);
+    const raw = await data.toBuffer();
+
+    // Images : EXIF supprime (les photos de chantier portent la position GPS),
+    // redimensionnees et recompressees. Un echec de traitement ne doit pas faire
+    // perdre la photo a quelqu'un sur un chantier : on stocke alors l'original.
+    let body = raw;
+    if (isImage(data.mimetype)) {
+      try {
+        body = await optimizeImage(raw, data.mimetype);
+      } catch (err) {
+        request.log.error({ err, mimetype: data.mimetype }, 'optimisation image echouee, original conserve');
+      }
+    }
+
+    await putFile(storedName, body, data.mimetype);
+
+    // Miniature pour les grilles et les listes. Best-effort : sans elle, les
+    // clients retombent sur l'original (`thumbnail_url || url`).
+    let thumbnailUrl: string | undefined;
+    if (isThumbnailable(data.mimetype)) {
+      try {
+        const thumbName = `${uuid}_thumb.jpg`;
+        await putFile(thumbName, await generateThumbnail(body), 'image/jpeg');
+        thumbnailUrl = `${env.API_PUBLIC_URL}/files/${thumbName}`;
+      } catch (err) {
+        request.log.error({ err }, 'generation de la miniature echouee');
+      }
+    }
 
     return reply.code(201).send({
       url: `${env.API_PUBLIC_URL}/files/${storedName}`,
+      thumbnail_url: thumbnailUrl,
       original_name: data.filename,
-      file_size: buffer.length,
+      file_size: body.length,
       mime_type: data.mimetype,
     });
   });
