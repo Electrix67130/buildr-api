@@ -2,7 +2,14 @@
 # Sauvegarde quotidienne de la base Buildr (production).
 #
 # Fait un pg_dump depuis le service db (conteneur buildr-db) vers ./backups/, compresse,
-# et supprime les sauvegardes de plus de RETENTION_DAYS jours.
+# l'envoie sur le stockage objet, et supprime les sauvegardes locales de plus de
+# RETENTION_DAYS jours.
+#
+# L'envoi hors du serveur est le coeur du dispositif : une copie posee a cote de
+# la base ne protege de rien. Une panne de disque emporterait la base ET ses
+# sauvegardes. Il n'est pas bloquant — si le bucket est injoignable, la copie
+# locale existe quand meme et le script se termine en succes avec un
+# avertissement.
 #
 # Installation du cron (tous les jours a 3h du matin) :
 #   crontab -e
@@ -45,6 +52,25 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
 
 echo "[backup] OK -> $OUTFILE ($(du -h "$OUTFILE" | cut -f1))"
 
-# Rotation
+# Envoi hors du serveur. Le script tourne dans le conteneur de l'API, ou le SDK
+# S3 et les identifiants sont deja disponibles : aucune cle a dupliquer sur
+# l'hote. Le dump passe par stdin, le conteneur ne voyant pas ./backups.
+if [[ "${STORAGE_MODE:-local}" == "s3" ]]; then
+  REMOTE_KEY="${BACKUP_S3_PREFIX:-backups}/$(basename "$OUTFILE")"
+  if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T api \
+       node scripts/upload-backup.js "$REMOTE_KEY" < "$OUTFILE"; then
+    :
+  else
+    # Volontairement non bloquant : mieux vaut une sauvegarde locale seule qu'un
+    # cron en echec qu'on finit par ignorer.
+    echo "[backup] ATTENTION : envoi distant echoue — seule la copie locale existe." >&2
+  fi
+else
+  echo "[backup] STORAGE_MODE != s3 — pas d'envoi distant."
+fi
+
+# Rotation locale. Les copies distantes ne sont pas supprimees ici : la cle d'API
+# n'a deliberement pas le droit de supprimer un objet. Leur expiration se regle
+# par une regle de cycle de vie sur le bucket (cf. docs/HOSTING.md).
 DELETED="$(find "$BACKUP_DIR" -name 'buildr-*.sql.gz' -type f -mtime "+$RETENTION_DAYS" -print -delete | wc -l | tr -d ' ')"
 echo "[backup] Rotation : $DELETED sauvegarde(s) > ${RETENTION_DAYS}j supprimee(s)."

@@ -295,6 +295,40 @@ délivrance — sinon les emails partent dans les spams.
 
 Coût des sauvegardes : ~1 €/mois (la base prend peu de place).
 
+### Comment ça fonctionne
+
+`scripts/backup-db.sh`, lancé par cron à 3h, produit un `pg_dump` compressé dans
+`./backups/` **puis l'envoie sur le bucket** sous le préfixe `backups/`.
+
+L'envoi passe par le conteneur de l'API (`scripts/upload-backup.js`) : le SDK S3
+et les identifiants y sont déjà présents, aucune clé n'est dupliquée sur l'hôte.
+Le dump est transmis par l'entrée standard, le conteneur ne voyant pas le dossier
+`backups/` de l'hôte.
+
+Un échec d'envoi **n'interrompt pas** la sauvegarde : la copie locale existe et
+le script se termine en succès avec un avertissement. Un cron qui échoue est un
+cron qu'on finit par ignorer.
+
+### Expiration des copies distantes — à configurer une fois
+
+La rotation locale est faite par le script (30 jours). Les copies distantes, non :
+la clé d'API n'a **délibérément pas** le droit de supprimer un objet, ce qui
+protège les sauvegardes d'une erreur de code.
+
+Leur expiration se règle donc côté bucket, dans la console Scaleway :
+**Object Storage → `buildr-uploads` → Lifecycle rules → Créer une règle**
+
+  - Préfixe : `backups/`
+  - Expiration des objets : 90 jours
+  - Expiration des versions non courantes : 7 jours
+
+Le versioning étant activé, la seconde ligne est nécessaire : sans elle, un objet
+supprimé continuerait d'être facturé à travers ses anciennes versions.
+
+Le préfixe et le bucket de destination sont configurables par
+`BACKUP_S3_PREFIX` et `BACKUP_S3_BUCKET` si tu veux plus tard isoler les
+sauvegardes dans un bucket dédié.
+
 ---
 
 ## 6. Coût total mensuel beta
