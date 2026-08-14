@@ -29,13 +29,49 @@ async function sendViaResend({ to, subject, html }: SendMailOptions): Promise<vo
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from: env.SMTP_FROM, to, subject, html }),
+    body: JSON.stringify({ from: fromAddress(), to, subject, html, text: htmlToText(html) }),
   });
 
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`Resend a répondu ${res.status}: ${detail}`);
   }
+}
+
+/**
+ * Version texte brut derivee du HTML.
+ *
+ * Un message HTML seul est un signal negatif fort pour les filtres anti-spam :
+ * les vrais expediteurs envoient les deux parties. C'est l'un des rares leviers
+ * de delivrabilite qui se joue dans le code plutot que dans le DNS.
+ */
+function htmlToText(html: string): string {
+  return html
+    // Les liens sont explicites en texte : "libelle (url)".
+    .replace(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
+    .replace(/<\/(p|div|h[1-6]|tr|li)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;|&rsquo;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .trim();
+}
+
+/**
+ * Expediteur affiche. Un nom lisible plutot qu'une adresse nue : les clients
+ * mail l'affichent tel quel, et un expediteur anonyme inspire moins confiance
+ * au destinataire comme au filtre.
+ */
+function fromAddress(): string {
+  return env.SMTP_FROM.includes('<') ? env.SMTP_FROM : `Buildr <${env.SMTP_FROM}>`;
 }
 
 export async function sendMail({ to, subject, html }: SendMailOptions): Promise<void> {
@@ -52,10 +88,11 @@ export async function sendMail({ to, subject, html }: SendMailOptions): Promise<
   }
 
   await transporter.sendMail({
-    from: env.SMTP_FROM,
+    from: fromAddress(),
     to,
     subject,
     html,
+    text: htmlToText(html),
   });
 }
 
