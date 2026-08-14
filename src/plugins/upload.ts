@@ -50,6 +50,14 @@ async function uploadPlugin(fastify: FastifyInstance) {
     const { filename } = z.object({ filename: z.string().min(1) }).parse(request.params);
     const { t } = z.object({ t: z.string().min(1) }).parse(request.query);
 
+    // helmet applique par defaut Cross-Origin-Resource-Policy: same-origin, ce
+    // qui fait bloquer par le navigateur toute image de l'API affichee depuis
+    // le dashboard (autre origine). On releve la politique pour cette seule
+    // famille de routes : c'est la seule dont les reponses sont destinees a
+    // etre integrees dans une page d'une autre origine, et l'acces reste
+    // protege par le token signe.
+    reply.header('cross-origin-resource-policy', 'cross-origin');
+
     const safeName = path.basename(filename);
 
     if (!verifyFileToken(t, safeName)) {
