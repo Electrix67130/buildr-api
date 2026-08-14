@@ -26,16 +26,19 @@ const ASSETS_DIR = path.join(__dirname, 'assets');
 
 // ---------------------------------------------------------------- stockage
 
-/**
- * Depose un fichier dans le stockage configure et renvoie l'URL a stocker en
- * base. Le seed tourne via le CLI knex, hors du contexte Fastify : il ne peut
- * pas importer src/lib/storage.ts (TypeScript). On reproduit donc ici le strict
- * necessaire, en lisant les memes variables d'environnement.
- */
-async function putAsset(fileName, storedName) {
-  const body = fs.readFileSync(path.join(ASSETS_DIR, fileName));
-  const contentType = fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
+// Le seed tourne via le CLI knex, hors du contexte Fastify : il ne peut pas
+// importer src/lib/storage.ts ni src/lib/image.ts (TypeScript). On reproduit
+// donc ici le strict necessaire, en lisant les memes variables d'environnement
+// et en appliquant les memes reglages de miniature que POST /upload.
 
+/** URL publique d'un fichier stocke, dans la forme attendue en base. */
+function fileUrl(storedName) {
+  const base = process.env.API_PUBLIC_URL || process.env.APP_URL || 'http://localhost:3000';
+  return `${base}/files/${storedName}`;
+}
+
+/** Ecrit un fichier dans le stockage configure. */
+async function store(storedName, body, contentType) {
   if (process.env.STORAGE_MODE === 's3') {
     const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
     const client = new S3Client({
@@ -59,9 +62,31 @@ async function putAsset(fileName, storedName) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, storedName), body);
   }
+}
 
-  const base = process.env.API_PUBLIC_URL || process.env.APP_URL || 'http://localhost:3000';
-  return { url: `${base}/files/${storedName}`, size: body.length, contentType };
+async function putAsset(fileName, storedName) {
+  const body = fs.readFileSync(path.join(ASSETS_DIR, fileName));
+  const contentType = fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
+
+  await store(storedName, body, contentType);
+
+  // Miniature, comme le fait POST /upload. Sans elle les grilles de la demo
+  // chargeraient les originaux — precisement ce que le traitement d'images
+  // evite. Meme convention de nommage que le plugin d'upload.
+  let thumbnailUrl;
+  if (contentType === 'image/jpeg') {
+    const sharp = require('sharp');
+    const thumbName = `${storedName.replace(/\.[^.]+$/, '')}_thumb.jpg`;
+    const thumb = await sharp(body, { failOn: 'none' })
+      .rotate()
+      .resize({ width: 400, height: 400, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 70, mozjpeg: true })
+      .toBuffer();
+    await store(thumbName, thumb, 'image/jpeg');
+    thumbnailUrl = fileUrl(thumbName);
+  }
+
+  return { url: fileUrl(storedName), thumbnailUrl, size: body.length, contentType };
 }
 
 // ------------------------------------------------------------------ helpers
@@ -306,6 +331,7 @@ exports.seed = async function seed(knex) {
       chantier_id: chantierIds[chantierKey],
       uploaded_by: uploader,
       url: asset.url,
+      thumbnail_url: asset.thumbnailUrl,
       caption,
       file_size: asset.size,
       mime_type: asset.contentType,
@@ -391,6 +417,7 @@ exports.seed = async function seed(knex) {
       chantier_id: chantierIds[e.chantier],
       created_by: e.by,
       photo_url: assets[e.asset].url,
+      thumbnail_url: assets[e.asset].thumbnailUrl,
       latitude: e.lat,
       longitude: e.lng,
       description: e.description,
