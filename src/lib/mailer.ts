@@ -5,7 +5,10 @@ const transporter = env.SMTP_HOST
   ? nodemailer.createTransport({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
-      secure: env.SMTP_PORT === 465,
+      // TLS implicite : 465 est le port standard, 2465 celui de Scaleway
+      // Transactional Email. Sur les autres ports (587, 2587) nodemailer
+      // negocie STARTTLS.
+      secure: env.SMTP_PORT === 465 || env.SMTP_PORT === 2465,
       auth: {
         user: env.SMTP_USER,
         pass: env.SMTP_PASSWORD,
