@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import { z } from 'zod';
 import UserService from './user.service';
-import { updateUserSchema, deleteAccountSchema } from './user.schema';
+import { updateUserSchema, deleteAccountSchema, toPublicUser } from './user.schema';
 import { getUserOrganizationId } from '@/lib/org-scope';
 import { getActiveMembership } from '@/lib/active-membership';
 
@@ -62,7 +62,7 @@ export default fp(
       const { id } = uuidSchema.parse(request.params);
       const user = await service.findById(id);
       if (!user) return reply.notFound('User not found');
-      const { password_hash: _, ...safeUser } = user;
+      const safeUser = toPublicUser(user);
       return safeUser;
     });
 
@@ -129,7 +129,7 @@ export default fp(
           .update({ name: data.company_name });
       }
 
-      const { password_hash: _, ...safeUser } = user;
+      const safeUser = toPublicUser(user);
       return safeUser;
     });
 

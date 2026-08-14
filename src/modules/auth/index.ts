@@ -4,6 +4,7 @@ import { z } from 'zod';
 import AuthService from './auth.service';
 import { registerSchema, loginSchema, refreshSchema, updatePasswordSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema';
 import OrganizationMemberService from '../organization-member/organization-member.service';
+import { toPublicUser } from '../user/user.schema';
 
 const switchOrganizationSchema = z.object({
   organization_id: z.string().uuid(),
@@ -59,7 +60,8 @@ export default fp(
     fastify.get('/auth/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
       const user = await fastify.db('user').where({ id: request.user.sub }).first();
       if (!user) return reply.notFound('User not found');
-      const { password_hash: _password_hash, role: _legacyRole, organization_id: _legacyOrg, ...safeUser } = user;
+      const { role: _legacyRole, organization_id: _legacyOrg, ...rest } = user;
+      const safeUser = toPublicUser(rest);
 
       // On charge les memberships + on derive role + organization_id depuis la membership ACTIVE.
       // Cela permet aux clients existants de continuer a utiliser user.role / user.organization_id

@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import { randomUUID, createHmac } from 'crypto';
 import UserService from '@/modules/user/user.service';
 import { RegisterInput } from './auth.schema';
-import { UserRow } from '@/modules/user/user.schema';
+import { UserRow, toPublicUser } from '@/modules/user/user.schema';
 import env from '@/config/env';
 import { invalidateSessionCache, type Platform } from '@/lib/session-cache';
 import { closeUserConnections } from '@/lib/realtime-hub';
@@ -122,7 +122,7 @@ class AuthService {
     }
 
     const tokens = await this.generateTokens(user, data.platform ?? 'web');
-    const { password_hash: _, ...safeUser } = user;
+    const safeUser = toPublicUser(user);
 
     return { user: safeUser, ...tokens };
   }
@@ -239,7 +239,7 @@ class AuthService {
     }
 
     const tokens = await this.generateTokens(user, platform);
-    const { password_hash: _, ...safeUser } = user;
+    const safeUser = toPublicUser(user);
 
     return { user: safeUser, ...tokens };
   }

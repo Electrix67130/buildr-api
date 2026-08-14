@@ -48,3 +48,23 @@ export type UserRow = {
   created_at: string;
   updated_at: string;
 };
+
+/**
+ * Retire d'une ligne `user` tout ce qui ne doit jamais sortir de l'API :
+ * le hash du mot de passe, et les identifiants de session par plateforme —
+ * ce sont des donnees internes au controle d'authentification, aucun client
+ * n'en a l'usage.
+ */
+export function toPublicUser<T extends Record<string, unknown>>(user: T) {
+  const {
+    password_hash: _password_hash,
+    current_mobile_session_id: _mobileSession,
+    current_web_session_id: _webSession,
+    ...rest
+  } = user as T & {
+    password_hash?: string;
+    current_mobile_session_id?: string | null;
+    current_web_session_id?: string | null;
+  };
+  return rest;
+}
