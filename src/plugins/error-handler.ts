@@ -37,6 +37,7 @@ async function errorHandler(fastify: FastifyInstance) {
         user_id: (request.user as { sub?: string } | undefined)?.sub ?? null,
         status_code: 500,
         request_id: request.id,
+        source: 'api',
       })
       .catch((dbErr) => fastify.log.error({ err: dbErr }, 'Failed to write error_log'));
 

@@ -355,6 +355,41 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 
 ---
 
+## Signalements d'erreur
+
+| Methode | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/error-reports` | cle d'API seule | Remonte un plantage client dans `error_log` |
+
+**Body :**
+```json
+{
+  "level": "error | warn (defaut error)",
+  "message": "string (requis, max 2000)",
+  "stack": "string (optionnel, max 10000)",
+  "source": "mobile | dashboard (requis)",
+  "platform": "ios | android | web (optionnel)",
+  "app_version": "string (optionnel, max 40)",
+  "screen": "string (optionnel, max 200)"
+}
+```
+
+**Reponse 202** (accepte, corps vide).
+
+**Sans JWT obligatoire** : un plantage se produit aussi sur l'ecran de connexion,
+et c'est celui-la qu'on veut le moins rater. Si un token valide accompagne la
+requete, l'erreur est rattachee a l'utilisateur ; sinon elle reste anonyme.
+
+Limite a **20 requetes par minute** et par IP, en plus de la limite globale : une
+boucle de plantage cote client inonderait sinon la table. Les longueurs sont
+plafonnees pour la meme raison — la cle d'API est publique, puisqu'embarquee dans
+le bundle mobile.
+
+Les signalements remontent dans la page `/admin/errors` du dashboard, aux cotes
+des erreurs 500 de l'API (`source: "api"`).
+
+---
+
 ## Fichiers (photos et documents)
 
 | Methode | Route | Auth | Description |

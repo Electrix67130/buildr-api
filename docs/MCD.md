@@ -414,3 +414,51 @@ Tokens Expo Push enregistres par device. Un user peut avoir plusieurs lignes (un
 | `push_enabled` | boolean | NOT NULL, default `true` |
 
 Toggle global ON/OFF des notifications. Quand `false`, `sendPushToUsers` skip l'utilisateur entier (toutes plateformes confondues).
+
+---
+
+## Table : `audit_log`
+
+Trace des actions sensibles effectuees par un super admin.
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `super_admin_id` | uuid | NOT NULL, FK -> `user.id` |
+| `action` | varchar(100) | NOT NULL (ex. `org.impersonate`, `user.disable`) |
+| `target_type` | varchar(50) | nullable |
+| `target_id` | uuid | nullable |
+| `metadata` | jsonb | nullable |
+| `ip` | varchar(64) | nullable |
+| `created_at` | timestamp | NOT NULL, default now, INDEX |
+
+**Migration :** `20260511120000_super_admin_setup.js`
+
+---
+
+## Table : `error_log`
+
+Suivi d'erreurs maison, sans prestataire externe : elle recoit les exceptions non
+gerees de l'API **et** les plantages remontes par les clients via
+`POST /error-reports`. Consultee depuis la page `/admin/errors` du dashboard.
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `level` | varchar(10) | NOT NULL — `error` \| `warn` |
+| `message` | text | NOT NULL |
+| `stack` | text | nullable |
+| `route` | varchar(500) | nullable — URL HTTP, erreurs serveur |
+| `method` | varchar(10) | nullable |
+| `user_id` | uuid | nullable, FK -> `user.id` SET NULL |
+| `status_code` | integer | nullable |
+| `request_id` | varchar(100) | nullable |
+| `source` | varchar(20) | NOT NULL, default `api` — `api` \| `mobile` \| `dashboard` |
+| `platform` | varchar(20) | nullable — `ios` \| `android` \| `web` |
+| `app_version` | varchar(40) | nullable — version du client, pour verifier qu'un correctif a pris |
+| `screen` | varchar(200) | nullable — ecran ou composant client concerne |
+| `created_at` | timestamp | NOT NULL, default now, INDEX |
+
+**Index :** `idx_error_log_source_created` (source, created_at)
+
+**Migrations :** `20260511120000_super_admin_setup.js`, `20260814140000_error_log_client_context.js`
