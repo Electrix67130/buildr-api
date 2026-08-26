@@ -91,20 +91,32 @@ corrects, conformité RGPD native.
 
 **A. Le serveur (Virtual Instances)**
 
-  Région : Paris (par)
+  Produit : **DEV1-M** — 3 vCPU, 4 Go RAM, 40 Go SSD
+  Zone : `fr-par-1` (Paris)
+  Nom : `buildr-prod`
   IP publique : `51.15.214.102`
+  Coût : ~14 €/mois
 
   C'est là que tournent l'API, la base de données, le dashboard web et
   le site vitrine, tous en Docker, plus Caddy sur l'hôte.
 
-  Le plan initial visait un **DEV1-M** (3 vCPU, 4 Go RAM, 40 Go SSD,
-  ~14 €/mois), dimensionné pour faire tourner PostgreSQL à côté de Node
-  sans être à l'étroit. **Le gabarit réellement provisionné n'a pas été
-  reverifié depuis** — à confirmer dans la console avant de s'appuyer
-  sur le chiffre de la section 6.
+  Gabarit **confirmé sur la machine le 26 août 2026** (`COMMERCIAL_TYPE`
+  des métadonnées Scaleway) : 3 vCPU, 3,8 Gio de RAM utilisable, 45 Go
+  de partition racine.
+
+  Marge à cette date : 1,1 Gio de RAM consommée sur 3,8 et 9,6 Go de
+  disque sur 45 (22 %). Rien ne presse côté dimensionnement — c'est
+  PostgreSQL à côté de Node qui justifiait les 4 Go, et il respire.
 
   Quand monter en taille : vers 10 entreprises, un PRO2-XXS
   (~24 €/mois) est la marche suivante.
+
+  Les métadonnées se relisent depuis la machine, sans passer par la
+  console :
+
+```bash
+curl -s http://169.254.42.42/conf | grep -E '^(COMMERCIAL_TYPE|ZONE|HOSTNAME)='
+```
 
 **B. Le stockage (Object Storage)**
 
@@ -169,7 +181,7 @@ corrects, conformité RGPD native.
 
 ### 2.3 Coût Scaleway phase beta
 
-  Serveur (gabarit à confirmer)  ~14,00 €/mois
+  Serveur DEV1-M                 14,00 €/mois
   Object Storage (< 75 Go)         0,00 €/mois
   Domaine getbuildr.fr             0,75 €/mois (~9 €/an lissé)
   Transactional Email              voir §4
@@ -327,7 +339,7 @@ sauvegardes dans un bucket dédié.
 
 ## 6. Coût total mensuel beta
 
-  Serveur Scaleway (gabarit à confirmer)  ~14,00 €
+  Serveur Scaleway DEV1-M                 14,00 €
   Object Storage                            0,00 €  (< 75 Go gratuits)
   Domaine getbuildr.fr                      0,75 €  (~9 €/an lissé)
   DNS + HTTPS                               0,00 €  (Scaleway Domains + Caddy)
@@ -356,7 +368,8 @@ sauvegardes dans un bucket dédié.
 
 Ce qui est en place et vérifié :
 
-  - [x] Compte Scaleway, VPS provisionné à Paris (`51.15.214.102`)
+  - [x] Compte Scaleway, VPS **DEV1-M** provisionné en `fr-par-1`
+        (`buildr-prod`, `51.15.214.102`)
   - [x] Domaine `getbuildr.fr` acheté chez Scaleway, zone DNS servie
         par `ns0`/`ns1.dom.scw.cloud`
   - [x] `getbuildr.fr`, `app.` et `api.` pointent sur le VPS
@@ -372,8 +385,6 @@ Ce qui est en place et vérifié :
 
 Ce qui reste à faire ou à vérifier :
 
-  - [ ] Confirmer le gabarit réel du VPS dans la console (§2A) — le
-        chiffre de la section 6 en dépend
   - [ ] Locker `usebuildr.fr` (~9 €/an) contre le phishing
   - [ ] Poser la règle de cycle de vie sur le préfixe `backups/` (§5)
         si elle ne l'est pas déjà
