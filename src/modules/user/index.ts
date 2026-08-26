@@ -63,6 +63,17 @@ export default fp(
       const user = await service.findById(id);
       if (!user) return reply.notFound('User not found');
       const safeUser = toPublicUser(user);
+      // findById lit la table user, dont la colonne `role` est un vestige : la
+      // source de verite est organization_member. Sans cette reprise, la fiche
+      // affichait un role different de celui de la liste (qui, elle, joint
+      // organization_member) et different des droits reellement appliques.
+      const viewer = await getActiveMembership(fastify.db, request.user.sub);
+      if (viewer?.organization_id) {
+        const membership = await fastify.db('organization_member')
+          .where({ user_id: id, organization_id: viewer.organization_id })
+          .first();
+        if (membership) safeUser.role = membership.role;
+      }
       return safeUser;
     });
 
@@ -107,7 +118,23 @@ export default fp(
         }
       }
 
-      const user = await service.update(id, data);
+      // Le role vit sur organization_member : c'est lui que lisent
+      // getActiveMembership() et donc tous les controles d'acces. L'ecrire sur
+      // user.role ne changeait aucun droit — l'admin croyait avoir promu ou
+      // retrograde quelqu'un sans que rien ne bouge. On met les deux a jour :
+      // la membership fait autorite, la colonne user suit pour ne pas diverger.
+      const { role: newRole, ...userFields } = data;
+
+      if (newRole && editorMembership?.organization_id) {
+        const updated = await fastify.db('organization_member')
+          .where({ user_id: id, organization_id: editorMembership.organization_id })
+          .update({ role: newRole, updated_at: fastify.db.fn.now() });
+        if (updated === 0) {
+          return reply.notFound("Cet utilisateur n'est pas membre de votre organisation");
+        }
+      }
+
+      const user = await service.update(id, newRole ? { ...userFields, role: newRole } : userFields);
       if (!user) return reply.notFound('User not found');
 
       // L'admin qui change company_name d'un membre interne (non-client) propage a toute l'org.
@@ -130,6 +157,12 @@ export default fp(
       }
 
       const safeUser = toPublicUser(user);
+      if (editorMembership?.organization_id) {
+        const membership = await fastify.db('organization_member')
+          .where({ user_id: id, organization_id: editorMembership.organization_id })
+          .first();
+        if (membership) safeUser.role = membership.role;
+      }
       return safeUser;
     });
 

@@ -152,6 +152,22 @@ Sont **supprimes** : `refresh_token`, `push_token`, `calendar_integration`,
 Sont **conserves** : chantiers, photos, documents et messages crees — ils appartiennent a
 l'organisation et apparaissent desormais sous « Compte supprime ».
 
+### PATCH /users/:id — le role vit sur la membership
+
+Le `role` transmis met a jour `organization_member.role` pour
+**l'organisation active de l'editeur**, pas la colonne `user.role`. C'est
+`organization_member` que lit `getActiveMembership()`, donc c'est lui qui
+determine les droits reels.
+
+La colonne `user.role` est un vestige, conservee en phase pour ne pas
+diverger, mais elle ne fait pas autorite. Avant correction, le PATCH
+n'ecrivait que cette colonne : la fiche affichait le nouveau role, la liste
+et les permissions gardaient l'ancien. `GET /users/:id` renvoie desormais
+lui aussi le role de la membership, comme `GET /users`.
+
+Si la cible n'est pas membre de l'organisation active de l'editeur, la
+requete repond `404`.
+
 ### GET /users — Visibilite
 
 - **Admin** : voit tous les utilisateurs de l'organisation
