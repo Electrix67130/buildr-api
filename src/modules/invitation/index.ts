@@ -78,9 +78,26 @@ export default fp(
       return { message: 'Invitation accepted', invitation };
     });
 
-    // DELETE /invitations/:id — cancel an invitation
+    // DELETE /invitations/:id — cancel an invitation (admin or manager only)
     fastify.delete('/invitations/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
+
+      // Meme exigence qu'a la creation : annuler une invitation est un acte
+      // d'administration. Auparavant l'authentification seule suffisait, et rien
+      // ne verifiait l'organisation — un compte de l'org A pouvait annuler une
+      // invitation de l'org B s'il en connaissait l'identifiant.
+      const membership = await getActiveMembership(fastify.db, request.user.sub);
+      if (membership?.role !== 'admin' && membership?.role !== 'manager') {
+        return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'Only admins and managers can cancel an invitation' });
+      }
+
+      const invitation = await service.findById(id);
+      // Une invitation d'une autre organisation est traitee comme inexistante :
+      // repondre 403 confirmerait son existence.
+      if (!invitation || invitation.organization_id !== membership.organization_id) {
+        return reply.notFound('Invitation not found');
+      }
+
       const deleted = await service.delete(id);
       if (!deleted) return reply.notFound('Invitation not found');
       return reply.code(204).send();

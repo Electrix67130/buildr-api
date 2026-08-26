@@ -343,7 +343,17 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 | GET | `/invitations` | JWT | Liste des invitations |
 | POST | `/invitations` | JWT | Inviter un collaborateur |
 | POST | `/invitations/:token/accept` | Non | Accepter une invitation |
-| DELETE | `/invitations/:id` | JWT | Annuler une invitation |
+| DELETE | `/invitations/:id` | JWT | Annuler une invitation (admin ou manager, meme organisation) |
+
+### DELETE /invitations/:id
+
+Annuler une invitation exige le role **admin ou manager**, comme la creation,
+et l'invitation doit appartenir a l'organisation active de l'appelant. Une
+invitation d'une autre organisation repond `404` et non `403` : un `403`
+confirmerait son existence.
+
+Auparavant l'authentification seule suffisait et l'organisation n'etait pas
+verifiee.
 
 ### POST /invitations
 
