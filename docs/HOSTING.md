@@ -115,22 +115,28 @@ corrects, conformité RGPD native.
   Compatible API S3 : le code s'en sert comme d'un dossier en ligne,
   sans dépendre du fournisseur. Migrer ailleurs reste possible.
 
-  **Usage confirmé** : les sauvegardes quotidiennes de la base, sous le
-  préfixe `backups/` (section 5).
+  Ce qu'on y met, **vérifié en production le 26 août 2026** :
 
-  **Usage à vérifier** : les photos et documents. Le code gère deux
-  modes (`STORAGE_MODE`), et les deux sources se contredisent —
-  `src/lib/storage.ts:19` présente `s3` comme « mode retenu en
-  production », tandis que `docker-compose.prod.yml` monte un volume
-  `buildr_uploads` en commentant « STORAGE_MODE=local, S3 pas encore
-  codé ». Ce dernier commentaire est faux, le mode S3 est bien
-  implémenté ; reste à savoir lequel des deux modes tourne réellement.
-  L'enjeu n'est pas cosmétique : en mode `local`, les fichiers vivent
-  dans un volume Docker **qui n'est pas sauvegardé** par le cron de la
-  section 5.
+  - les photos de chantier et les documents — `STORAGE_MODE=s3`,
+    endpoint `https://s3.fr-par.scw.cloud` ;
+  - les sauvegardes quotidiennes de la base, sous le préfixe
+    `backups/` (section 5).
 
-  Ordre de grandeur si l'on bascule tout sur S3 : 75 Go ≈ 15 000 photos
-  en qualité moyenne, ou 30 000 compressées.
+  Les deux partagent le même bucket : `BACKUP_S3_BUCKET` n'étant pas
+  défini, `scripts/upload-backup.js:23` retombe sur `S3_BUCKET`. Les
+  isoler dans un bucket dédié reste possible plus tard sans toucher au
+  code.
+
+  Le mode `local` existe toujours dans le code (`src/lib/storage.ts`)
+  et sert en développement. **Ne pas le laisser passer en production** :
+  les fichiers vivraient alors dans un volume Docker que le cron de
+  sauvegarde ne couvre pas, et le dump Postgres ne contient pas les
+  fichiers. Le volume `buildr_uploads` monté par
+  `docker-compose.prod.yml` est un reliquat de cette époque, sans usage
+  en mode `s3`.
+
+  Ordre de grandeur : 75 Go ≈ 15 000 photos en qualité moyenne, ou
+  30 000 compressées.
 
 **C. Le nom de domaine (Domains)**
 
@@ -275,9 +281,10 @@ répond `200` sans rien envoyer quand l'adresse n'a pas de compte actif.
   - **Base de données** : sauvegarde automatique tous les jours à 3h du
     matin, envoyée vers Scaleway Object Storage. Conservation locale de
     30 jours, distante de 90 jours.
-  - **Photos / documents** : couverts **si et seulement si**
-    `STORAGE_MODE=s3` (cf. §2B). En mode `local`, ils vivent dans un
-    volume Docker que rien ne sauvegarde.
+  - **Photos / documents** : stockés dans Object Storage
+    (`STORAGE_MODE=s3`, cf. §2B), redondé par Scaleway sur 3 sites.
+    Ils ne transitent donc pas par le dump Postgres, qui ne contient
+    que la base.
   - **Code de l'application** : sur GitHub.
 
 Coût des sauvegardes : ~1 €/mois (la base prend peu de place).
@@ -357,7 +364,8 @@ Ce qui est en place et vérifié :
         trois conteneurs — `https://api.getbuildr.fr/health` répond 200
   - [x] Stack Docker Compose déployée (`docker-compose.prod.yml`),
         déploiement par `scripts/deploy-api.sh` / `deploy-web.sh`
-  - [x] Bucket Object Storage `buildr-uploads`
+  - [x] Bucket Object Storage `buildr-uploads`, servant à la fois aux
+        fichiers applicatifs (`STORAGE_MODE=s3`) et aux sauvegardes
   - [x] Cron de sauvegarde à 3h, envoi distant opérationnel
   - [x] Messagerie : réception OVH Zimbra + envoi Scaleway TEM
         (cf. `docs/EMAIL.md`)
@@ -366,8 +374,6 @@ Ce qui reste à faire ou à vérifier :
 
   - [ ] Confirmer le gabarit réel du VPS dans la console (§2A) — le
         chiffre de la section 6 en dépend
-  - [ ] Trancher le `STORAGE_MODE` de production (§2B). En mode
-        `local`, les photos et documents ne sont pas sauvegardés
   - [ ] Locker `usebuildr.fr` (~9 €/an) contre le phishing
   - [ ] Poser la règle de cycle de vie sur le préfixe `backups/` (§5)
         si elle ne l'est pas déjà

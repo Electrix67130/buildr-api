@@ -39,7 +39,9 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      # Persiste les photos/documents (STORAGE_MODE=local, S3 pas encore code).
+      # Reliquat du mode STORAGE_MODE=local : la prod tourne en s3 (bucket
+      # buildr-uploads), les fichiers ne passent plus par ce volume. Conserve
+      # tant qu'un repli en local reste possible.
       - buildr_uploads:/usr/src/app/uploads
     depends_on:
       db:
