@@ -1,23 +1,41 @@
-# Buildr — Plan d'hébergement
+# Buildr — Hébergement
 
-Document de référence pour savoir où héberger quoi, combien ça coûte,
-et comment configurer Cloudflare.
+Document de référence pour savoir où tourne quoi, combien ça coûte, et
+comment le domaine est câblé.
 
-**Dernière mise à jour :** 14 mai 2026
-**Phase ciblée :** beta (1 à 3 entreprises partenaires)
-**Domaine retenu :** `getbuildr.fr`
+**Dernière mise à jour :** 26 août 2026
+**Phase :** beta (1 à 3 entreprises partenaires)
+**Domaine :** `getbuildr.fr`
+**Serveur :** VPS Scaleway, Paris — `51.15.214.102`
+
+> **Ce document a changé de nature.** Il décrivait un *plan* rédigé en
+> mai 2026 ; il décrit désormais l'installation **réellement en place**.
+> Deux briques de ce plan ont été abandonnées en route et n'existent
+> nulle part dans l'infrastructure actuelle :
+>
+> - **Cloudflare** — la zone DNS est chez **Scaleway Domains**, et le
+>   HTTPS est assuré par **Caddy** sur le serveur (Let's Encrypt). Il
+>   n'y a donc ni CDN, ni anti-DDoS, ni proxy devant le VPS : les
+>   enregistrements `A` pointent directement sur son IP publique.
+> - **Resend** — les mails partent par **Scaleway Transactional Email**,
+>   la réception passe par **OVH Zimbra**. Le code Resend subsiste dans
+>   `src/lib/mailer.ts` mais `RESEND_API_KEY` est vide en production,
+>   donc cette branche est inerte. Tout est détaillé dans
+>   **`docs/EMAIL.md`**, qui fait autorité sur la messagerie.
+>
+> Les sections ci-dessous ont été reprises en conséquence. La section 8
+> (comparaison des hébergeurs) reste un document de décision, pas une
+> description de l'existant.
 
 ---
 
 ## 1. Vue d'ensemble
 
-L'écosystème Buildr est composé de 4 applications. Pour la phase beta,
-elles tournent toutes sur **un seul serveur** chez Scaleway, derrière
-Cloudflare qui s'occupe du domaine et de la sécurité.
+Quatre applications, un seul serveur pour la phase beta.
 
 ```
-                        Cloudflare
-                  (DNS + HTTPS + cache + anti-DDoS)
+                    Scaleway Domains
+                (zone DNS : ns0/ns1.dom.scw.cloud)
                            │
             ┌──────────────┼──────────────┐
             │              │              │
@@ -25,273 +43,242 @@ Cloudflare qui s'occupe du domaine et de la sécurité.
        (vitrine)      (dashboard)        (API)
             │              │              │
             └──────────────┼──────────────┘
+                           │  A → 51.15.214.102 (direct, sans proxy)
                            ▼
-              ┌─────────────────────────┐
-              │  Serveur Scaleway       │
-              │  Paris, France          │
-              │  (Docker Compose)       │
-              │  ─────────────────────  │
-              │  - API Buildr           │
-              │  - Base PostgreSQL      │
-              │  - Dashboard web        │
-              │  - Site vitrine         │
-              └──────────┬──────────────┘
+              ┌─────────────────────────────┐
+              │  VPS Scaleway — Paris       │
+              │                             │
+              │  Caddy (sur l'hôte)         │
+              │   HTTPS Let's Encrypt       │
+              │   reverse proxy vers :      │
+              │     127.0.0.1:3000  api     │
+              │     127.0.0.1:3001  vitrine │
+              │     127.0.0.1:3002  dashbrd │
+              │  ─────────────────────────  │
+              │  Docker Compose :           │
+              │   - buildr-api (Fastify)    │
+              │   - buildr-db (Postgres 17) │
+              │   - buildr-website          │
+              │   - buildr-dashboard        │
+              └──────────┬──────────────────┘
                          │
                          ▼
               ┌─────────────────────────┐
               │  Scaleway Object        │
-              │  Storage Paris          │
-              │  (photos chantier,      │
-              │   documents, backups)   │
+              │  Storage — Paris        │
+              │  (sauvegardes de la     │
+              │   base ; photos et      │
+              │   documents : voir §2B) │
               └─────────────────────────┘
 
-Email transactionnel : Resend
+Email : réception OVH Zimbra · envoi Scaleway TEM  → docs/EMAIL.md
 ```
+
+Point à retenir sur l'exposition réseau : seul Caddy écoute sur
+l'extérieur. Les conteneurs publient sur `127.0.0.1` uniquement — y
+compris Postgres, joignable sur le port 5432 **du localhost du VPS
+seulement**, donc via un tunnel SSH pour un client comme DataGrip.
 
 ---
 
 ## 2. Scaleway — l'hébergeur principal
 
-**Pourquoi Scaleway :** entreprise française (groupe Iliad/Free),
-data centers en France (Paris), console et facture en français, prix
+**Pourquoi Scaleway :** entreprise française (groupe Iliad/Free), data
+centers en France (Paris), console et facture en français, prix
 corrects, conformité RGPD native.
 
-### 2.1 Ce qu'il faut prendre
+### 2.1 Ce qui est pris
 
-Trois services suffisent pour démarrer.
+**A. Le serveur (Virtual Instances)**
 
-**A. Le serveur (Virtual Instances — gamme Development)**
-
-  Produit : **DEV1-M**
-  Caractéristiques : 3 vCPU, 4 Go RAM, 40 Go SSD
   Région : Paris (par)
-  Coût : ~14 €/mois
+  IP publique : `51.15.214.102`
 
-  C'est là que tournent : l'API, la base de données, le dashboard web,
-  et le site vitrine. Tout est isolé dans Docker.
+  C'est là que tournent l'API, la base de données, le dashboard web et
+  le site vitrine, tous en Docker, plus Caddy sur l'hôte.
 
-  Pourquoi pas plus petit : on a besoin d'au moins 4 Go de RAM pour
-  faire tourner PostgreSQL confortablement à côté de Node.
+  Le plan initial visait un **DEV1-M** (3 vCPU, 4 Go RAM, 40 Go SSD,
+  ~14 €/mois), dimensionné pour faire tourner PostgreSQL à côté de Node
+  sans être à l'étroit. **Le gabarit réellement provisionné n'a pas été
+  reverifié depuis** — à confirmer dans la console avant de s'appuyer
+  sur le chiffre de la section 6.
 
-  Pourquoi pas plus gros : à 1-3 entreprises, c'est largement suffisant.
-  On évalue de monter en taille (PRO2-XXS, ~24 €/mois) quand on
-  approchera des 10 entreprises.
+  Quand monter en taille : vers 10 entreprises, un PRO2-XXS
+  (~24 €/mois) est la marche suivante.
 
-**B. Le stockage des photos et documents (Object Storage)**
+**B. Le stockage (Object Storage)**
 
-  Produit : **Object Storage**, gamme **Standard**
-  Région : Paris (par)
+  Produit : Object Storage, gamme Standard, région Paris (par)
+  Bucket : `buildr-uploads`
   Coût : 75 Go gratuits, puis ~0,015 €/Go/mois
 
-  Compatible API S3 — c'est-à-dire que le code de l'application
-  l'utilise comme un dossier en ligne, sans dépendre d'un fournisseur
-  spécifique. On peut migrer ailleurs plus tard si besoin.
+  Compatible API S3 : le code s'en sert comme d'un dossier en ligne,
+  sans dépendre du fournisseur. Migrer ailleurs reste possible.
 
-  Ce qu'on y met :
-  - Toutes les photos prises sur les chantiers
-  - Les documents (DICT, plans, factures, arrêtés…)
-  - Les sauvegardes quotidiennes de la base de données
+  **Usage confirmé** : les sauvegardes quotidiennes de la base, sous le
+  préfixe `backups/` (section 5).
 
-  Tant qu'on reste sous 75 Go, c'est gratuit. Pour donner un ordre
-  d'idée : ça représente environ 15 000 photos en qualité moyenne, ou
-  30 000 photos compressées.
+  **Usage à vérifier** : les photos et documents. Le code gère deux
+  modes (`STORAGE_MODE`), et les deux sources se contredisent —
+  `src/lib/storage.ts:19` présente `s3` comme « mode retenu en
+  production », tandis que `docker-compose.prod.yml` monte un volume
+  `buildr_uploads` en commentant « STORAGE_MODE=local, S3 pas encore
+  codé ». Ce dernier commentaire est faux, le mode S3 est bien
+  implémenté ; reste à savoir lequel des deux modes tourne réellement.
+  L'enjeu n'est pas cosmétique : en mode `local`, les fichiers vivent
+  dans un volume Docker **qui n'est pas sauvegardé** par le cron de la
+  section 5.
+
+  Ordre de grandeur si l'on bascule tout sur S3 : 75 Go ≈ 15 000 photos
+  en qualité moyenne, ou 30 000 compressées.
 
 **C. Le nom de domaine (Domains)**
 
-  Domaine retenu : **getbuildr.fr**
-  Coût : ~8-10 €/an
+  `getbuildr.fr`, acheté chez Scaleway — ~8-10 €/an.
+
+  **La zone DNS est hébergée là aussi**, servie par `ns0.dom.scw.cloud`
+  et `ns1.dom.scw.cloud`. C'est le point qui change tout par rapport au
+  plan initial : aucun prestataire tiers ne peut configurer la zone
+  automatiquement, tous les enregistrements se créent à la main dans la
+  console Scaleway.
 
   Le `.fr` ancre le projet sur le marché BTP français et appuie le
-  discours "données hébergées en France". Le préfixe `get` est un
-  pattern startup éprouvé (getsentry, getmagic, getlago) et reste
-  facile à dicter au téléphone à un client BTP.
-
-  Où l'acheter (ordre indifférent, mêmes prix) :
-  - **Cloudflare Registrar** : à prix coûtant, paiement en USD.
-  - **OVH** : 100 % français, paiement en euros.
-  - **Gandi** : sérieux, console agréable.
-  - **Scaleway Domains** : pratique si on veut tout centraliser.
-
-  Le nom principal `buildr.fr` est déjà pris ; on pourra tenter de
-  le racheter plus tard si l'occasion se présente. En attendant,
-  il est sage de locker `usebuildr.fr` (~9 €/an) pour qu'un
-  concurrent ne phishe pas.
+  discours « données hébergées en France ». Le nom principal
+  `buildr.fr` est déjà pris ; `usebuildr.fr` (~9 €/an) reste à locker
+  pour éviter qu'un tiers ne s'en serve pour du phishing.
 
 ### 2.2 Ce qu'il ne faut PAS prendre (pour l'instant)
 
-Scaleway propose une cinquantaine de produits, voici ceux à ignorer
-pour ne pas se disperser :
-
-  - **Bare Metal / Dedibox / Elastic Metal** : serveurs physiques
-    dédiés. Trop puissant et trop rigide pour la phase beta. À
-    réévaluer quand on dépassera 50 entreprises clientes.
-  - **Managed Database PostgreSQL** : base de données gérée par
-    Scaleway (~14 €/mois). Utile quand on veut décharger la
-    maintenance, mais pour l'instant la base tourne dans Docker à
-    côté de l'app — c'est plus simple et gratuit.
-  - **Kubernetes (Kapsule)** : orchestration de containers à grande
-    échelle. Pas nécessaire tant qu'on est sur un seul serveur.
-  - **Serverless Functions / Containers / Jobs** : exécution à la
-    demande. Pas adapté à un serveur qui doit rester allumé en
-    permanence (WebSocket temps réel).
-  - **GPU / AI** : pas de besoin de calcul intensif.
-  - **Load Balancer** : utile uniquement si on met plusieurs serveurs
-    en parallèle.
-  - **Virtual Private Cloud (VPC)** : utile uniquement avec plusieurs
-    serveurs à isoler.
-  - **Secret Manager** : un fichier `.env` chiffré fait le job au
-    départ.
+  - **Bare Metal / Dedibox / Elastic Metal** : trop rigide pour la
+    beta. À réévaluer au-delà de 50 entreprises.
+  - **Managed Database PostgreSQL** (~14 €/mois) : utile pour
+    décharger la maintenance, mais la base tourne dans Docker à côté
+    de l'app — plus simple et gratuit.
+  - **Kubernetes (Kapsule)** : inutile sur un seul serveur.
+  - **Serverless Functions / Containers / Jobs** : inadapté à un
+    process qui doit rester allumé (WebSocket temps réel).
+  - **GPU / AI** : aucun besoin de calcul intensif.
+  - **Load Balancer / VPC** : utiles seulement à plusieurs serveurs.
+  - **Secret Manager** : un `.env` sur le serveur fait le job au départ.
 
 ### 2.3 Coût Scaleway phase beta
 
-  Serveur DEV1-M             14,00 €/mois
-  Object Storage (< 75 Go)    0,00 €/mois
-  Domaine getbuildr.fr        0,75 €/mois (~9 €/an lissé)
-  ────────────────────────────────────────
-  TOTAL Scaleway             ~15 €/mois
+  Serveur (gabarit à confirmer)  ~14,00 €/mois
+  Object Storage (< 75 Go)         0,00 €/mois
+  Domaine getbuildr.fr             0,75 €/mois (~9 €/an lissé)
+  Transactional Email              voir §4
+  ─────────────────────────────────────────────
+  TOTAL Scaleway                  ~15 €/mois
 
 ---
 
-## 3. Cloudflare — la couche réseau
+## 3. DNS et HTTPS — sans Cloudflare
 
-**Cloudflare est un service gratuit qui se place entre Internet et ton
-serveur.** Il joue 4 rôles à la fois, et c'est l'astuce qui fait gagner
-du temps, de l'argent et de la sécurité.
+Le plan initial confiait quatre rôles à Cloudflare : DNS, HTTPS, CDN et
+anti-DDoS. Dans l'installation réelle, les deux premiers sont assurés
+autrement et **les deux derniers n'existent pas**. Autant le savoir
+explicitement plutôt que de croire à une protection absente.
 
-### 3.1 Les 4 rôles de Cloudflare
+### 3.1 DNS — Scaleway Domains
 
-**A. DNS (l'annuaire d'Internet)**
+La zone est servie par `ns0.dom.scw.cloud` et `ns1.dom.scw.cloud`. Les
+enregistrements applicatifs pointent directement sur l'IP du VPS :
 
-  Quand quelqu'un tape **getbuildr.fr** dans son navigateur, son
-  ordinateur a besoin de savoir à quelle adresse IP envoyer la
-  requête. Cloudflare répond à cette question en quelques
-  millisecondes, partout dans le monde.
+```
+getbuildr.fr        A  51.15.214.102     (vitrine)
+app.getbuildr.fr    A  51.15.214.102     (dashboard)
+api.getbuildr.fr    A  51.15.214.102     (API)
+```
 
-  C'est gratuit, et c'est plus rapide que les DNS de la plupart des
-  registrars classiques.
+Les enregistrements de messagerie (MX, SPF, DKIM, DMARC, SRV) vivent
+dans la même zone et sont documentés dans `docs/EMAIL.md`.
 
-**B. HTTPS / SSL (le petit cadenas dans le navigateur)**
+**Deux pièges propres à cette console**, appris à nos dépens :
 
-  Pour que les utilisateurs voient « cadenas vert » dans leur
-  navigateur, le site doit avoir un certificat SSL. Cloudflare en
-  génère un automatiquement et le renouvelle tout seul tous les
-  3 mois. **Tu n'as rien à faire.**
+- **Le point final.** Scaleway traite toute cible sans point final
+  comme un nom *relatif* et lui recolle le domaine, sans le moindre
+  message d'erreur. Un CNAME `zimbra1.mail.ovh.net` devient
+  silencieusement `zimbra1.mail.ovh.net.getbuildr.fr.`.
+- **`ns0` et `ns1` ne se synchronisent pas instantanément.** Un
+  enregistrement peut être visible sur l'un et absent de l'autre
+  pendant moins d'une minute. Interroger les deux avant de conclure à
+  une erreur :
 
-  Sans Cloudflare, il faudrait gérer Let's Encrypt soi-même sur le
-  serveur (faisable, mais une chose en moins à maintenir).
+```bash
+dig @ns0.dom.scw.cloud +short A api.getbuildr.fr
+dig @ns1.dom.scw.cloud +short A api.getbuildr.fr
+```
 
-**C. CDN (cache mondial)**
+### 3.2 HTTPS — Caddy sur l'hôte
 
-  Cloudflare a des serveurs partout dans le monde (Paris, New York,
-  Tokyo, Sydney…). Quand quelqu'un visite **getbuildr.fr** depuis Lyon,
-  Cloudflare lui sert la page depuis Paris. Depuis Montréal, depuis
-  son nœud de Montréal.
+Caddy tourne directement sur le VPS (hors Docker), obtient et renouvelle
+seul les certificats Let's Encrypt, et route par nom de domaine vers les
+conteneurs qui écoutent en local :
 
-  Résultat : le site charge en 100 ms partout au lieu de 500 ms si
-  on devait toujours interroger le serveur à Paris.
+```
+getbuildr.fr      → 127.0.0.1:3001   (website)
+app.getbuildr.fr  → 127.0.0.1:3002   (dashboard)
+api.getbuildr.fr  → 127.0.0.1:3000   (api)
+```
 
-  Pour la vitrine et le dashboard, le gain est immédiat.
+Le renouvellement des certificats est pris en charge par Caddy sans
+intervention. En contrepartie, c'est une brique à maintenir sur l'hôte,
+hors du cycle de déploiement Docker : une panne de Caddy coupe les trois
+sites d'un coup, et un `docker compose up` ne la répare pas.
 
-  Quand quelqu'un visite **getbuildr.fr** depuis Lyon, Cloudflare
-  lui sert la page depuis Paris (ou Marseille). Depuis Montréal,
-  depuis le nœud de Montréal.
+### 3.3 Ce qu'on n'a pas, et quand s'en soucier
 
-**D. Anti-DDoS et bot protection**
+- **Pas de CDN.** Chaque visiteur atteint Paris. Pour une clientèle BTP
+  française, la latence reste bonne ; le sujet ne se posera qu'en cas
+  d'audience hors de France.
+- **Pas d'anti-DDoS applicatif.** L'IP du serveur est publique et
+  directement joignable. Scaleway filtre les attaques volumétriques au
+  niveau réseau, mais rien ne filtre une attaque applicative — et les
+  ressources qui sautent en premier sont celles du VPS.
+- **L'IP est exposée.** Rien ne la masque, contrairement à un montage
+  derrière un proxy.
 
-  Si quelqu'un essaie d'attaquer le site avec des milliers de
-  requêtes par seconde, Cloudflare absorbe et filtre. C'est inclus
-  gratuitement.
-
-  Sans Cloudflare, ce sont les ressources de ton serveur Scaleway
-  qui sautent en premier.
-
-### 3.2 Pourquoi c'est mieux que les DNS du registrar
-
-Quand on achète un nom de domaine chez Scaleway, OVH ou Gandi, ils
-fournissent leurs propres DNS. Ça marche, mais :
-  - Pas de CDN intégré.
-  - Pas d'anti-DDoS gratuit.
-  - Certificats SSL à gérer soi-même.
-  - DNS souvent plus lents que ceux de Cloudflare.
-
-**Cloudflare = un seul service qui fait les 4 choses, gratuitement.**
-
-### 3.3 Comment ça se met en place
-
-Étapes côté Cloudflare (~15 minutes une fois pour toutes) :
-
-  1. Créer un compte sur cloudflare.com (gratuit).
-  2. Cliquer « Add a site » et taper **getbuildr.fr**.
-  3. Cloudflare scanne les DNS actuels et propose une configuration.
-  4. Cloudflare donne 2 adresses de « nameservers » (du style
-     `dana.ns.cloudflare.com` et `tim.ns.cloudflare.com`).
-  5. Aller chez le registrar (Scaleway / OVH / Gandi) et changer les
-     nameservers du domaine pour ceux de Cloudflare. Ça prend 1 à
-     24 h à se propager.
-  6. Une fois fait, c'est Cloudflare qui gère.
-
-Étapes côté DNS (les enregistrements à créer dans Cloudflare) :
-
-  - **getbuildr.fr** → adresse IP du serveur Scaleway
-    (le site vitrine répondra à cette adresse)
-  - **app.getbuildr.fr** → adresse IP du serveur Scaleway
-    (le dashboard répondra à cette adresse)
-  - **api.getbuildr.fr** → adresse IP du serveur Scaleway
-    (l'API répondra à cette adresse)
-
-Le serveur Scaleway, lui, sait grâce à un reverse proxy (Caddy)
-quel domaine renvoyer vers quelle application.
-
-### 3.4 Coût Cloudflare
-
-  Plan **Free** suffit pour la beta. Inclus :
-  - DNS illimité
-  - SSL automatique
-  - CDN mondial
-  - Anti-DDoS basique
-  - 100 000 requêtes/jour sur les fonctions (largement assez)
-
-  Coût : **0 €/mois**.
-
-  Plus tard, si on a besoin de fonctions avancées (règles de cache
-  fines, analytics détaillées), le plan Pro est à 20 €/mois — mais
-  on n'en aura pas besoin avant longtemps.
+Mettre Cloudflare devant reste possible plus tard sans rien changer au
+serveur : il suffirait de déléguer les nameservers et de recréer les
+enregistrements. À envisager le jour où le trafic public devient un
+enjeu — pas avant, chaque brique en plus étant une brique à comprendre
+en cas de panne.
 
 ---
 
-**E. Email Routing (bonus gratuit)**
+## 4. Email
 
-  Avant que Resend soit en place, tu peux activer **Email Routing**
-  dans Cloudflare pour rediriger `contact@getbuildr.fr` vers ta
-  boîte perso. Tu communiques une adresse pro dès le premier jour,
-  sans serveur mail à gérer. Configuration : 2 minutes.
+**Voir `docs/EMAIL.md`** — c'est le document qui fait autorité. En
+résumé :
 
----
+| Flux | Prestataire | Nom utilisé |
+|---|---|---|
+| Réception + courrier humain | OVH Zimbra Starter (3,60 €/an HT) | `@getbuildr.fr` |
+| Envoi transactionnel | Scaleway Transactional Email | `@mail.getbuildr.fr` |
 
-## 4. Resend — les emails transactionnels
+Les deux flux s'authentifient séparément, sur deux noms différents :
+la réputation d'expédition de l'application n'entame pas celle du
+courrier humain, et inversement.
 
-Quand l'app envoie un email (invitation, reset mot de passe,
-notification), elle passe par un service tiers qui s'occupe de la
-délivrance — sinon les emails partent dans les spams.
+Côté code, `sendMail()` choisit son canal dans l'ordre Resend → SMTP →
+log. En production c'est la branche SMTP qui sert
+(`smtp.tem.scaleway.com:2587`, STARTTLS), `RESEND_API_KEY` étant vide.
 
-**Produit recommandé : Resend** (alternative à Mailgun / SendGrid).
-
-  Coût : 0 € jusqu'à 3 000 emails / mois
-  Au-delà : ~20 €/mois pour 50 000 emails
-
-  Configuration : 3 enregistrements DNS à ajouter dans Cloudflare
-  (Resend les fournit copier-coller). 5 minutes à mettre en place.
+Un test d'envoi réel reste à faire — voir les points ouverts de
+`docs/EMAIL.md`, ainsi que l'avertissement sur `forgot-password`, qui
+répond `200` sans rien envoyer quand l'adresse n'a pas de compte actif.
 
 ---
 
 ## 5. Sauvegardes
 
-  - **Base de données** : sauvegarde automatique tous les jours à 3h
-    du matin, envoyée vers Scaleway Object Storage. Conservation de
-    30 jours.
-  - **Photos / documents** : déjà stockés dans Object Storage, qui
-    est redondé par Scaleway sur 3 sites.
-  - **Code de l'application** : sur GitHub (déjà fait).
+  - **Base de données** : sauvegarde automatique tous les jours à 3h du
+    matin, envoyée vers Scaleway Object Storage. Conservation locale de
+    30 jours, distante de 90 jours.
+  - **Photos / documents** : couverts **si et seulement si**
+    `STORAGE_MODE=s3` (cf. §2B). En mode `local`, ils vivent dans un
+    volume Docker que rien ne sauvegarde.
+  - **Code de l'application** : sur GitHub.
 
 Coût des sauvegardes : ~1 €/mois (la base prend peu de place).
 
@@ -333,14 +320,20 @@ sauvegardes dans un bucket dédié.
 
 ## 6. Coût total mensuel beta
 
-  Serveur Scaleway DEV1-M      14,00 €
-  Object Storage                0,00 € (< 75 Go gratuits)
-  Domaine getbuildr.fr          0,75 €  (~9 €/an lissé)
-  Cloudflare                    0,00 €
-  Resend                        0,00 € (< 3 000 emails/mois)
-  Apple Developer (lissé)       8,00 € (99 €/an)
-  ──────────────────────────────────────
-  TOTAL                       ~23 €/mois
+  Serveur Scaleway (gabarit à confirmer)  ~14,00 €
+  Object Storage                            0,00 €  (< 75 Go gratuits)
+  Domaine getbuildr.fr                      0,75 €  (~9 €/an lissé)
+  DNS + HTTPS                               0,00 €  (Scaleway Domains + Caddy)
+  OVH Zimbra Starter                        0,30 €  (3,60 €/an HT lissé)
+  Scaleway TEM                              à confirmer (volume beta négligeable)
+  Apple Developer (lissé)                   8,00 €  (99 €/an)
+  ──────────────────────────────────────────────────
+  TOTAL                                   ~23 €/mois
+
+  Deux lignes du plan initial ont disparu : Cloudflare (0 €, jamais
+  mis en place) et Resend (0 €, remplacé par TEM). Le total ne bouge
+  quasiment pas — la messagerie coûte 0,30 €/mois de plus qu'un plan
+  gratuit, pour une boîte réelle et deux alias.
 
   Phase « scale » (10 à 50 entreprises) :
   - Serveur passe à PRO2-XXS (24 €/mois)
@@ -352,31 +345,40 @@ sauvegardes dans un bucket dédié.
 
 ---
 
-## 7. Ordre des achats à faire
+## 7. État de l'installation
 
-À enchaîner dans cet ordre :
+Ce qui est en place et vérifié :
 
-  1. Créer un compte Scaleway (compte personnel suffit au début, ou
-     direct compte entreprise si l'auto-entreprise / société existe).
-  2. Acheter le domaine **getbuildr.fr** chez Scaleway (ou
-     Cloudflare Registrar direct si tu préfères tout regrouper).
-  3. Créer un compte Cloudflare et y ajouter le domaine.
-  4. Changer les nameservers chez le registrar pour ceux de
-     Cloudflare. Attendre quelques heures la propagation.
-  5. Provisionner le serveur **DEV1-M** à Scaleway, région Paris.
-  6. Créer un **Object Storage bucket** à Scaleway, région Paris.
-  7. Créer un compte **Resend**, ajouter le domaine, mettre les
-     3 enregistrements DNS dans Cloudflare.
-  8. Déployer l'application sur le serveur (script Docker Compose
-     fourni séparément).
-  9. Pointer les 3 sous-domaines dans Cloudflare vers le serveur.
-  10. Vérifier que tout répond, configurer le cron de sauvegarde.
+  - [x] Compte Scaleway, VPS provisionné à Paris (`51.15.214.102`)
+  - [x] Domaine `getbuildr.fr` acheté chez Scaleway, zone DNS servie
+        par `ns0`/`ns1.dom.scw.cloud`
+  - [x] `getbuildr.fr`, `app.` et `api.` pointent sur le VPS
+  - [x] Caddy sur l'hôte, HTTPS Let's Encrypt, reverse proxy vers les
+        trois conteneurs — `https://api.getbuildr.fr/health` répond 200
+  - [x] Stack Docker Compose déployée (`docker-compose.prod.yml`),
+        déploiement par `scripts/deploy-api.sh` / `deploy-web.sh`
+  - [x] Bucket Object Storage `buildr-uploads`
+  - [x] Cron de sauvegarde à 3h, envoi distant opérationnel
+  - [x] Messagerie : réception OVH Zimbra + envoi Scaleway TEM
+        (cf. `docs/EMAIL.md`)
 
-Temps estimé total : une demi-journée à une journée.
+Ce qui reste à faire ou à vérifier :
+
+  - [ ] Confirmer le gabarit réel du VPS dans la console (§2A) — le
+        chiffre de la section 6 en dépend
+  - [ ] Trancher le `STORAGE_MODE` de production (§2B). En mode
+        `local`, les photos et documents ne sont pas sauvegardés
+  - [ ] Locker `usebuildr.fr` (~9 €/an) contre le phishing
+  - [ ] Poser la règle de cycle de vie sur le préfixe `backups/` (§5)
+        si elle ne l'est pas déjà
+  - [ ] Test d'envoi transactionnel réel (`docs/EMAIL.md`)
 
 ---
 
 ## 8. Comparaison avec les autres hébergeurs
+
+*Section de décision, conservée telle quelle : elle documente pourquoi
+Scaleway a été retenu, et vers quoi se tourner si le besoin change.*
 
 ### 8.1 o2switch vs Scaleway — le piège à éviter
 
@@ -461,7 +463,9 @@ OVH est le vrai concurrent de Scaleway en France :
   - Prix comparables.
 
 À choisir si « 100 % français historique » est un argument
-commercial fort pour tes premiers clients.
+commercial fort pour tes premiers clients. À noter qu'on est déjà
+client OVH pour la messagerie (Zimbra), sans que cela crée de
+dépendance côté hébergement.
 
 ### 8.3 Clever Cloud — PaaS, zéro ops
 
@@ -491,7 +495,7 @@ assume le compromis.
 
 ### 8.5 Récapitulatif — quelle option pour quel besoin
 
-  Scaleway      → recommandé pour Buildr, maintenant.
+  Scaleway      → retenu pour Buildr, en place.
   OVHcloud      → si on veut le label « 100 % français » et
                   viser le secteur public (SecNumCloud).
   Clever Cloud  → plus tard, pour décharger toute l'ops.
@@ -499,5 +503,4 @@ assume le compromis.
   o2switch      → seulement pour un blog WordPress séparé,
                   jamais pour héberger l'app Buildr.
 
-
-=== FIN DU DOCUMENT ===
+Voir aussi `docs/EMAIL.md` et `docs/DEPLOYMENT-PLAN.md`.
