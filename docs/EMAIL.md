@@ -4,7 +4,7 @@ Document de référence pour la messagerie du domaine `getbuildr.fr` :
 qui reçoit, qui envoie, et quels enregistrements DNS rendent ces envois
 légitimes.
 
-**Dernière mise à jour :** 25 août 2026
+**Dernière mise à jour :** 26 août 2026
 **Domaine :** `getbuildr.fr`
 **Zone DNS faisant autorité :** Scaleway (`ns0.dom.scw.cloud`, `ns1.dom.scw.cloud`)
 
@@ -62,6 +62,10 @@ Côté OVH Zimbra :
 - Compte `contact@getbuildr.fr` créé — offre Starter, quota 15 Gio
 - Alias `support@getbuildr.fr` et `privacy@getbuildr.fr` actifs,
   **réception validée par un envoi réel** le 23 août 2026
+- Alias `billing@getbuildr.fr` créé le 26 août 2026, exigé par les CGV
+  publiées sur `getbuildr.fr/cgv` qui le citent comme service
+  comptabilité. Existence vérifiée sans délivrer de message, en
+  interrogeant le MX d'OVH (voir l'encadré ci-dessous)
 - Webmail : https://webmail.mail.ovh.net/
 - Serveur de la plateforme : `zimbra1.mail.ovh.net` (46.105.75.174) —
   c'est l'hôte à renseigner pour une configuration IMAP manuelle
@@ -130,6 +134,29 @@ attendu, pas un oubli.
   (section 7, point 2). Tentative du 25 août 2026 restée sans envoi :
   voir l'avertissement en section 7.
 
+### Vérifier une adresse sans lui envoyer de mail
+
+Un `RCPT TO` suivi d'un `QUIT` demande au serveur s'il accepterait
+l'adresse, sans jamais transmettre de contenu. Utile pour contrôler un
+alias fraîchement créé sans polluer la boîte :
+
+```bash
+python3 - <<'EOF'
+import smtplib
+s = smtplib.SMTP('mx0.mail.ovh.net', 25)
+s.ehlo('exemple.local'); s.mail('postmaster@getbuildr.fr')
+for a in ['billing@getbuildr.fr', 'nexistepas-9f3a@getbuildr.fr']:
+    print(a, s.rcpt(a))
+s.quit()
+EOF
+```
+
+**Toujours inclure une adresse inventée dans le test.** Un serveur en
+catch-all répond `250` à tout, ce qui ferait passer un alias absent pour
+présent. Le résultat n'est concluant que si l'adresse bidon est rejetée :
+le 26 août 2026, `billing@` et `support@` ont répondu `250 2.1.5 Ok` et
+l'adresse de contrôle `550 5.1.1 Recipient address rejected`.
+
 ### Le piège du point final
 
 Scaleway interprète toute cible sans point final comme un nom
@@ -163,6 +190,7 @@ adresses sont donc des alias, qui ne consomment pas de licence.
 | `contact@getbuildr.fr` | compte réel | boîte unique, relevée par un humain |
 | `support@getbuildr.fr` | alias | contact de support cité à Apple et dans les pages légales |
 | `privacy@getbuildr.fr` | alias | demandes RGPD citées dans la politique de confidentialité |
+| `billing@getbuildr.fr` | alias | service comptabilité / facturation cité dans les CGV |
 | `…@mail.getbuildr.fr` | expéditeur seul | `SMTP_FROM` de l'API, sur le **sous-domaine**, ne reçoit rien |
 
 L'expéditeur transactionnel n'a pas besoin d'exister comme boîte, mais il
@@ -182,9 +210,42 @@ domaine d'expédition dans Scaleway TEM, pas la racine.
    ils ne se devinent pas.
 3. Créer le compte `contact@getbuildr.fr`.
 4. Créer les alias `support@` et `privacy@` pointant sur ce compte.
-5. Vérifier dans la fiche de l'offre si **IMAP** est inclus : cela
-   détermine si la boîte peut être branchée dans un client mail ou si
-   elle reste accessible uniquement par le webmail.
+5. Brancher la boîte dans un client mail si besoin — **l'offre Starter
+   inclut IMAP, POP et SMTP** (vérifié le 26 août 2026 dans la
+   documentation OVH).
+
+   | | Serveur | Port | Chiffrement |
+   |---|---|---|---|
+   | Réception IMAP | `imap.mail.ovh.net` (ou `ssl0.ovh.net`) | 993 | SSL/TLS |
+   | Envoi SMTP | `smtp.mail.ovh.net` (ou `ssl0.ovh.net`) | 465 | SSL/TLS |
+
+   Nom d'utilisateur : l'adresse complète. L'enregistrement
+   `SRV _autodiscover._tcp` déjà posé permet aussi la configuration
+   automatique d'Outlook.
+
+   **Ce que Starter n'a pas : ActiveSync et EWS**, réservés aux offres
+   Pro et Business. En IMAP, seuls les **mails** se synchronisent : le
+   calendrier et les contacts restent accessibles par le seul webmail.
+   Vouloir l'agenda dans Outlook n'est pas un réglage, c'est un
+   changement d'offre.
+
+   Point à trancher sciemment : **le nouvel Outlook de Windows et l'app
+   Outlook mobile ne parlent pas IMAP en direct.** L'app dialogue avec
+   les serveurs de Microsoft, qui vont chercher les messages chez OVH et
+   en conservent une copie dans leurs centres de données. Sur mobile ce
+   n'est pas désactivable — c'est l'architecture de l'application. Cela
+   n'affecte pas les données de la plateforme, mais entre en tension
+   avec le discours « hébergement européen sans tiers interposé » des
+   mentions légales. L'Outlook classique de Windows, l'app Mail d'iOS et
+   les clients IMAP ordinaires se connectent directement, avec les mêmes
+   réglages.
+
+   **Piège de configuration sur Outlook** : le client tombe sur le
+   `SRV _autodiscover._tcp` de la zone et tente une configuration
+   Exchange/ActiveSync, qui échoue puisque Starter ne l'inclut pas —
+   sans que le message d'erreur en donne la raison. Il faut choisir
+   **IMAP** explicitement plutôt que se fier à la détection
+   automatique.
 
 ---
 

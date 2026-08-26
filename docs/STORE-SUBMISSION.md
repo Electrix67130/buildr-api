@@ -2,7 +2,7 @@
 
 Plan opérationnel pour publier l'app mobile Buildr (`buildr-ui`, Expo + EAS).
 
-**Dernière mise à jour :** 12 août 2026
+**Dernière mise à jour :** 26 août 2026
 **Éditeur :** PG TERRASSEMENT (SARL, RCS Épinal 902 611 094) — société mère.
 Une structure dédiée à l'app est prévue plus tard, l'app sera alors transférée
 (cf. § 6).
@@ -19,6 +19,12 @@ Une structure dédiée à l'app est prévue plus tard, l'app sera alors transfé
 | Vitrine + dashboard | `getbuildr.fr`, `app.getbuildr.fr`, HTTPS |
 | Pages légales publiques | `/privacy`, `/cgu`, `/mentions-legales` — PG TERRASSEMENT éditeur |
 | Bundle identifiers | `fr.getbuildr.app` (iOS et Android) |
+| Décision iPad | `supportsTablet: false` — pas de captures iPad à produire (cf. § 3.1) |
+| Variables EAS | `EXPO_PUBLIC_API_URL`, `_API_KEY`, `_DASHBOARD_URL` créées sur le profil `production` |
+| Builds de test | Android `preview` (13 août 2026) et iOS `simulator` (30 juillet 2026) terminés |
+| Boîtes email | `support@`, `privacy@` et `billing@getbuildr.fr` actives (cf. `docs/EMAIL.md`) |
+| Apple Developer Program | payé le 26 août 2026 |
+| Pages légales | `/privacy`, `/cgu`, `/cgv`, `/mentions-legales` en ligne |
 | Icônes | `icon.png`, `adaptive-icon.png`, splash — 1024×1024 |
 | Permissions | déclarées avec descriptions FR (caméra, photos, localisation) |
 | Suppression de compte in-app | requise par la guideline Apple 5.1.1(v) |
@@ -29,13 +35,16 @@ Une structure dédiée à l'app est prévue plus tard, l'app sera alors transfé
 
 | Bloque | Quoi |
 |---|---|
-| les deux stores | boîtes `support@getbuildr.fr` et `privacy@getbuildr.fr` inexistantes |
-| les deux stores | comptes développeur non créés |
-| le build | variables d'environnement EAS non créées |
+| Google Play | compte développeur non créé (25 € une fois) |
+| iOS | Apple Developer Program **payé le 26 août 2026** — reste à confirmer que l'enrollment est validé et App Store Connect accessible |
 | le push Android | credentials FCM V1 non fournis à EAS |
-| la fiche iOS | captures d'écran iPhone (et iPad, cf. § 3.1) |
+| la fiche iOS | captures d'écran iPhone 6,9" |
 | la fiche Android | captures, feature graphic 1024×500, icône 512×512 |
 | la review | compte de démonstration avec données factices |
+
+À noter sur les builds : le build iOS existant est un build **simulateur**, qui
+ne requiert aucun compte Apple. Aucun build iOS signé n'a donc jamais été
+produit — la chaîne de signature reste entièrement à valider.
 
 ---
 
@@ -94,19 +103,23 @@ Enrollment **Organization** (le nom du vendeur affiché sur l'App Store sera
       d'identité du représentant autorisé (qui doit figurer sur l'immatriculation).
       **Obligatoire à partir de septembre 2026** — à ne pas repousser.
 
-### 2.3 Emails
+### 2.3 Emails — **fait**
 
-- [ ] `support@getbuildr.fr` et `privacy@getbuildr.fr` — cités dans les pages
-      légales et demandés par les deux stores. Un alias chez Scaleway ou OVH
-      suffit.
+- [x] `support@getbuildr.fr` et `privacy@getbuildr.fr` créés chez OVH Zimbra le
+      23 août 2026, réception validée par un envoi réel. `billing@` a suivi le
+      26 août. Détails dans `docs/EMAIL.md`.
 
 ---
 
 ## 3. Fiches store
 
-### 3.1 Décision préalable : iPad
+### 3.1 Décision préalable : iPad — **tranchée**
 
-`app.json` déclare `"supportsTablet": true`. Conséquence : App Store Connect
+`supportsTablet` est passé à `false` : pas de captures iPad à produire, et
+l'iPad sort de la surface de rejet. Réactivable dans une version ultérieure.
+Le raisonnement d'origine est conservé ci-dessous.
+
+`app.json` déclarait `"supportsTablet": true`. Conséquence : App Store Connect
 réclame un jeu de **captures iPad** en plus des captures iPhone, et le reviewer
 teste l'app sur iPad — une mise en page cassée en grand format est un motif de
 rejet.
