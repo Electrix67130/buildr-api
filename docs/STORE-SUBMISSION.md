@@ -2,7 +2,7 @@
 
 Plan opérationnel pour publier l'app mobile Buildr (`buildr-ui`, Expo + EAS).
 
-**Dernière mise à jour :** 26 août 2026
+**Dernière mise à jour :** 28 août 2026
 **Éditeur :** PG TERRASSEMENT (SARL, RCS Épinal 902 611 094) — société mère.
 Une structure dédiée à l'app est prévue plus tard, l'app sera alors transférée
 (cf. § 6).
@@ -23,7 +23,9 @@ Une structure dédiée à l'app est prévue plus tard, l'app sera alors transfé
 | Variables EAS | `EXPO_PUBLIC_API_URL`, `_API_KEY`, `_DASHBOARD_URL` créées sur le profil `production` |
 | Builds de test | Android `preview` (13 août 2026) et iOS `simulator` (30 juillet 2026) terminés |
 | Boîtes email | `support@`, `privacy@` et `billing@getbuildr.fr` actives (cf. `docs/EMAIL.md`) |
-| Apple Developer Program | payé le 26 août 2026 |
+| Apple Developer Program | payé le 26 août 2026, **enrollment validé** — App Store Connect accessible le 28 août |
+| Compte de démonstration | `demo@getbuildr.fr` vérifié en production le 28 août : actif, rôle `admin`, **`is_super_admin: false`**, organisation contenant 3 chantiers, 4 utilisateurs et 1 modèle |
+| Page Abonnement | masquée aux admins clients (réservée au super admin) — le reviewer ne verra donc pas d'écran tarifaire, ce qui écarte un rejet au titre de la règle 3.1.1 |
 | Pages légales | `/privacy`, `/cgu`, `/cgv`, `/mentions-legales` en ligne |
 | Icônes | `icon.png`, `adaptive-icon.png`, splash — 1024×1024 |
 | Permissions | déclarées avec descriptions FR (caméra, photos, localisation) |
@@ -36,7 +38,7 @@ Une structure dédiée à l'app est prévue plus tard, l'app sera alors transfé
 | Bloque | Quoi |
 |---|---|
 | Google Play | compte développeur non créé (25 € une fois) |
-| iOS | Apple Developer Program **payé le 26 août 2026** — reste à confirmer que l'enrollment est validé et App Store Connect accessible |
+| iOS | fiche d'app non créée dans App Store Connect (`ascAppId` manquant dans `eas.json`) |
 | le push Android | credentials FCM V1 non fournis à EAS |
 | la fiche iOS | captures d'écran iPhone 6,9" |
 | la fiche Android | captures, feature graphic 1024×500, icône 512×512 |
