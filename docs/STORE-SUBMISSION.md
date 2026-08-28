@@ -77,9 +77,14 @@ J5   Soumission review publique  ──► Apple : 24 h à 2 semaines la 1re foi
 Enrollment **Organization** (le nom du vendeur affiché sur l'App Store sera
 « PG TERRASSEMENT » ; l'app, elle, s'appelle « Buildr »).
 
-- [ ] Créer un Apple Account dédié sur le domaine de la société :
-      `dev@pgterrassement.fr` — Apple exige que l'email soit sur le domaine de
-      l'organisation. Activer la **double authentification** (obligatoire).
+- [x] Apple Account avec **double authentification** activée (obligatoire).
+
+      Correction du 28 août 2026 : ce document affirmait qu'Apple **exige** une
+      adresse sur le domaine de la société. C'est faux — l'enrollment
+      Organization a été validé avec une adresse personnelle
+      (`@laposte.net`). Une adresse au nom de la société reste préférable pour
+      que le compte survive au départ d'une personne, mais ce n'est pas une
+      condition d'Apple.
 - [ ] Vérifier le D-U-N-S sur `developer.apple.com/enroll/duns-lookup` :
       `276898250`. Contrôler que la raison sociale et l'adresse renvoyées par
       Dun & Bradstreet sont à jour — Apple compare **au caractère près**, et une
@@ -173,8 +178,19 @@ Deux options :
       Sans elles, le build sort sans URL d'API.
       Rappel : tout `EXPO_PUBLIC_*` est **en clair dans le bundle** — l'API key
       est extractible, elle ne vaut que comme garde-fou anti-scan.
-- [ ] Push iOS : laisser EAS générer la clé APNs (automatique une fois le compte
-      Apple lié).
+- [x] Push iOS : clé APNs générée par EAS le 28 août 2026.
+
+      **Piège rencontré, à retenir pour le prochain projet.** EAS propose de
+      réutiliser une clé APNs existante, et le recommande — les clés sont
+      plafonnées à deux par compte Apple et Apple les conçoit pour servir
+      toutes les apps d'une équipe. Mais la seule clé proposée appartenait à
+      l'équipe **EC CONCIERGERIE** (`V75DU644QJ`), pas à PG TERRASSEMENT
+      (`KH8XN5X4VY`).
+
+      Une clé APNs est **liée à l'équipe qui l'a créée** : Apple aurait refusé
+      les envois vers une app signée par une autre équipe, et les notifications
+      auraient échoué silencieusement en production. Réutiliser ne vaut qu'à
+      l'intérieur d'une même équipe. Ici il fallait en créer une nouvelle.
 - [ ] Push Android : créer un projet Firebase, récupérer la clé de compte de
       service **FCM V1** et l'uploader dans les credentials EAS.
 - [ ] Compléter `submit.production` dans `eas.json` : `ascAppId` (iOS) et
