@@ -2,7 +2,7 @@
 
 Plan opérationnel pour publier l'app mobile Buildr (`buildr-ui`, Expo + EAS).
 
-**Dernière mise à jour :** 28 août 2026
+**Dernière mise à jour :** 31 août 2026
 **Éditeur :** PG TERRASSEMENT (SARL, RCS Épinal 902 611 094) — société mère.
 Une structure dédiée à l'app est prévue plus tard, l'app sera alors transférée
 (cf. § 6).
@@ -24,6 +24,11 @@ Une structure dédiée à l'app est prévue plus tard, l'app sera alors transfé
 | Builds de test | Android `preview` (13 août 2026) et iOS `simulator` (30 juillet 2026) terminés |
 | Boîtes email | `support@`, `privacy@` et `billing@getbuildr.fr` actives (cf. `docs/EMAIL.md`) |
 | Apple Developer Program | payé le 26 août 2026, **enrollment validé** — App Store Connect accessible le 28 août |
+| Statut de commerçant (DSA) | déclaré le 31 août 2026. Coordonnées **publiques** sur la fiche App Store dans l'UE : PG TERRASSEMENT, 34 B rue d'Alsace 88000 Deyvillers, +33 6 24 13 72 22, `support@getbuildr.fr` |
+| Fiche App Store | créée le 31 août 2026 — nom **« Buildr Chantiers »**, `ascAppId` **6806975992** |
+| Build iOS signé | premier build de production réussi le 28 août 2026 (1.0.0, build 3) |
+| Envoi TestFlight | binaire téléversé le 31 août 2026 |
+| Identifiants figés dans `eas.json` | `appleTeamId` KH8XN5X4VY, `ascAppId` 6806975992 — `eas submit` ne pose plus de question |
 | Compte de démonstration | `demo@getbuildr.fr` vérifié en production le 28 août : actif, rôle `admin`, **`is_super_admin: false`**, organisation contenant 3 chantiers, 4 utilisateurs et 1 modèle |
 | Page Abonnement | masquée aux admins clients (réservée au super admin) — le reviewer ne verra donc pas d'écran tarifaire, ce qui écarte un rejet au titre de la règle 3.1.1 |
 | Pages légales | `/privacy`, `/cgu`, `/cgv`, `/mentions-legales` en ligne |
@@ -40,7 +45,7 @@ Une structure dédiée à l'app est prévue plus tard, l'app sera alors transfé
 | Google Play | compte développeur non créé (25 € une fois) |
 | iOS | fiche d'app non créée dans App Store Connect (`ascAppId` manquant dans `eas.json`) |
 | le push Android | credentials FCM V1 non fournis à EAS |
-| la fiche iOS | captures d'écran iPhone 6,9" |
+| la fiche iOS | captures d'écran iPhone 6,5" — **aucune n'existe dans aucun dépôt**, tout est à produire |
 | la fiche Android | captures, feature graphic 1024×500, icône 512×512 |
 | la review | compte de démonstration avec données factices |
 
@@ -117,6 +122,26 @@ Enrollment **Organization** (le nom du vendeur affiché sur l'App Store sera
       26 août. Détails dans `docs/EMAIL.md`.
 
 ---
+
+## 2.4 Ce que la création de la fiche a appris
+
+**« Buildr » est déjà pris sur l'App Store.** Le nom déposé est donc
+« Buildr Chantiers ». Sans effet sur le nom affiché sous l'icône, qui vient
+d'`expo.name` et reste « Buildr » — les deux noms sont indépendants, seul le
+premier doit être unique sur toute la boutique.
+
+**`eas submit` ne sait pas créer la première fiche d'app.** Il échoue sur
+`companyName`, un champ que seul le formulaire web expose. Créer la fiche à la
+main dans App Store Connect, puis renseigner `ascAppId` dans `eas.json`.
+
+**Le statut de commerçant (DSA) bloque tout tant qu'il n'est pas déclaré** — et
+le message d'erreur d'EAS n'en dit rien. Il se règle dans *Business*, avant
+toute création d'app.
+
+**La clé API générée par EAS est en `APP_MANAGER`**, pas Admin : suffisant pour
+téléverser et soumettre, insuffisant pour créer une app. C'est délibéré — elle
+vit sur les serveurs d'EAS et n'a pas à toucher aux contrats ni aux
+coordonnées bancaires.
 
 ## 3. Fiches store
 
