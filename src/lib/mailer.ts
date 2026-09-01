@@ -103,10 +103,18 @@ export function buildInvitationEmail(params: {
   token: string;
   expiresAt: string;
 }): { subject: string; html: string } {
-  // Deep link into the app (Expo scheme 'buildr://') + web fallback
+  // Le bouton principal pointe sur le WEB, pas sur le lien profond.
+  //
+  // `buildr://` n'est ouvrable que par un telephone ou l'app est deja
+  // installee. Sur un ordinateur, dans un webmail, ou sur un mobile sans
+  // l'app, cliquer ne produisait rien — et l'invite concluait que le lien
+  // etait casse. L'adresse web fonctionne partout, y compris pour creer le
+  // compte depuis un poste de bureau, ce qui est le cas le plus frequent
+  // pour un premier acces.
+  //
+  // Le lien profond reste offert en dessous, pour qui a deja l'app.
   const appLink = `buildr://invite/${params.token}`;
   const webLink = `${env.APP_URL}/invite/${params.token}`;
-  const inviteUrl = appLink;
   const expiresFormatted = new Date(params.expiresAt).toLocaleDateString('fr-FR', {
     day: 'numeric',
     month: 'long',
@@ -136,7 +144,7 @@ export function buildInvitationEmail(params: {
           </p>
 
           <div style="text-align: center; margin: 24px 0;">
-            <a href="${appLink}"
+            <a href="${webLink}"
                style="display: inline-block; background: #D97706; color: white; text-decoration: none;
                       padding: 12px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
               Accepter l'invitation
@@ -145,8 +153,9 @@ export function buildInvitationEmail(params: {
 
           <p style="color: #A8A29E; font-size: 13px;">
             Cette invitation expire le ${expiresFormatted}.<br>
-            Ouvrir dans l'app : <a href="${appLink}" style="color: #D97706;">${appLink}</a><br>
-            Ou version web : <a href="${webLink}" style="color: #D97706;">${webLink}</a>
+            Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>
+            <a href="${webLink}" style="color: #D97706;">${webLink}</a><br>
+            Vous avez deja l'application Buildr ? <a href="${appLink}" style="color: #D97706;">Ouvrir directement dans l'app</a>
           </p>
         </div>
 

@@ -345,6 +345,22 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 | POST | `/invitations/:token/accept` | Non | Accepter une invitation |
 | DELETE | `/invitations/:id` | JWT | Annuler une invitation (admin ou manager, meme organisation) |
 
+### Le mail d'invitation
+
+Le bouton principal pointe sur `${APP_URL}/invite/<token>`, pas sur le lien
+profond `buildr://invite/<token>`.
+
+Le schema `buildr://` n'est ouvrable que par un telephone ou l'application est
+deja installee. Sur un ordinateur, dans un webmail ou sur un mobile sans l'app,
+cliquer ne produisait rien — et l'invite en concluait que son lien etait mort.
+Or le premier acces se fait le plus souvent depuis un poste de bureau.
+
+Le lien profond reste propose en dessous, pour qui a deja l'application.
+
+`APP_URL` doit donc pointer sur le dashboard (`https://app.getbuildr.fr`) et non
+sur sa valeur par defaut `http://localhost:3001`, sans quoi le mail enverrait
+l'invite sur un port de sa propre machine.
+
 ### DELETE /invitations/:id
 
 Annuler une invitation exige le role **admin ou manager**, comme la creation,
