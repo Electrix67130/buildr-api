@@ -345,6 +345,18 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 | POST | `/invitations/:token/accept` | Non | Accepter une invitation |
 | DELETE | `/invitations/:id` | JWT | Annuler une invitation (admin ou manager, meme organisation) |
 
+### POST /invitations — langue du mail
+
+Le corps accepte un champ `locale` parmi `fr, en, de, es, it, pt, tr, pl`,
+`fr` par defaut. Il fixe la langue du mail d'invitation.
+
+C'est **celui qui invite** qui la choisit, et non une detection automatique :
+on ne connait pas encore l'invite, son adresse e-mail ne dit rien de sa langue,
+et son employeur est le seul a savoir dans quelle langue il travaille.
+
+La valeur est stockee sur l'invitation plutot que consommee au vol : un renvoi
+doit repartir dans la meme langue sans que l'expediteur ait a s'en souvenir.
+
 ### Le mail d'invitation
 
 Le bouton principal pointe sur `${APP_URL}/invite/<token>`, pas sur le lien

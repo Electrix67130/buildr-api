@@ -117,8 +117,13 @@ que l'utilisateur a cree un chantier. `DELETE /users/me` anonymise la ligne et r
 | `status` | enum `invitation_status` (`pending`, `accepted`, `expired`) | NOT NULL, default `pending` |
 | `expires_at` | timestamp | NOT NULL |
 | `created_at` | timestamp | NOT NULL, default now |
+| `locale` | varchar(5) | NOT NULL, default `fr` — langue du mail d'invitation |
 
-**Migration :** `20260412120004_create_invitation.js`
+`locale` est choisie par celui qui invite, et stockee plutot que consommee au
+vol : un renvoi doit repartir dans la meme langue.
+
+**Migrations :** `20260412120004_create_invitation.js`,
+`20260903183737_add_locale_to_invitation.js`
 
 ---
 

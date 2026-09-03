@@ -30,6 +30,7 @@ class InvitationService extends BaseService<InvitationRow> {
       status: 'pending',
       expires_at: expiresAt.toISOString(),
       organization_id: inviter.active_organization_id,
+      locale: data.locale,
     } as Partial<InvitationRow>);
 
     // Build inviter name for the email (reuse earlier fetched row)
@@ -42,6 +43,7 @@ class InvitationService extends BaseService<InvitationRow> {
       role: data.role || 'employee',
       token: invitation.token,
       expiresAt: invitation.expires_at,
+      locale: invitation.locale,
     });
 
     await sendMail({ to: data.email, subject, html });

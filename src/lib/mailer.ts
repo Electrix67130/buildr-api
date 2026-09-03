@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import env from '@/config/env';
+import { INVITATION, DATE_TAG, isMailLocale, MailLocale } from '@/lib/mail-i18n';
 
 const transporter = env.SMTP_HOST
   ? nodemailer.createTransport({
@@ -102,65 +103,55 @@ export function buildInvitationEmail(params: {
   role: string;
   token: string;
   expiresAt: string;
+  /** Langue choisie par celui qui invite. Retombe sur le francais si absente. */
+  locale?: string;
 }): { subject: string; html: string } {
-  // Le bouton principal pointe sur le WEB, pas sur le lien profond.
-  //
-  // `buildr://` n'est ouvrable que par un telephone ou l'app est deja
-  // installee. Sur un ordinateur, dans un webmail, ou sur un mobile sans
-  // l'app, cliquer ne produisait rien — et l'invite concluait que le lien
-  // etait casse. L'adresse web fonctionne partout, y compris pour creer le
-  // compte depuis un poste de bureau, ce qui est le cas le plus frequent
-  // pour un premier acces.
-  //
-  // Le lien profond reste offert en dessous, pour qui a deja l'app.
+  const lang: MailLocale = isMailLocale(params.locale) ? params.locale : 'fr';
+  const T = INVITATION[lang];
+
+  // Le bouton principal pointe sur le WEB, pas sur le lien profond : `buildr://`
+  // n'est ouvrable que par un telephone ou l'app est deja installee, et le
+  // premier acces se fait le plus souvent depuis un poste de bureau.
   const appLink = `buildr://invite/${params.token}`;
   const webLink = `${env.APP_URL}/invite/${params.token}`;
-  const expiresFormatted = new Date(params.expiresAt).toLocaleDateString('fr-FR', {
+  const expiresFormatted = new Date(params.expiresAt).toLocaleDateString(DATE_TAG[lang], {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
-
-  const roleLabels: Record<string, string> = {
-    admin: 'Administrateur',
-    employee: 'Employé',
-    client: 'Client',
-  };
+  const roleLabel = T.roles[params.role] ?? params.role;
 
   return {
-    subject: `${params.inviterName} vous invite à rejoindre Buildr`,
+    subject: T.subject(params.inviterName),
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
         <div style="text-align: center; margin-bottom: 32px;">
           <h1 style="color: #D97706; font-size: 28px; margin: 0;">Buildr</h1>
-          <p style="color: #78716C; margin-top: 4px;">Gestion de chantiers</p>
+          <p style="color: #78716C; margin-top: 4px;">${T.tagline}</p>
         </div>
 
         <div style="background: #FAFAF9; border: 1px solid #E7E5E4; border-radius: 12px; padding: 24px;">
-          <h2 style="color: #1C1917; margin-top: 0;">Vous êtes invité !</h2>
-          <p style="color: #57534E; line-height: 1.6;">
-            <strong>${params.inviterName}</strong> vous invite à rejoindre la plateforme Buildr
-            en tant que <strong>${roleLabels[params.role] || params.role}</strong>.
-          </p>
+          <h2 style="color: #1C1917; margin-top: 0;">${T.heading}</h2>
+          <p style="color: #57534E; line-height: 1.6;">${T.intro(params.inviterName, roleLabel)}</p>
 
           <div style="text-align: center; margin: 24px 0;">
             <a href="${webLink}"
                style="display: inline-block; background: #D97706; color: white; text-decoration: none;
                       padding: 12px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-              Accepter l'invitation
+              ${T.cta}
             </a>
           </div>
 
           <p style="color: #A8A29E; font-size: 13px;">
-            Cette invitation expire le ${expiresFormatted}.<br>
-            Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>
+            ${T.expires(expiresFormatted)}<br>
+            ${T.fallback}<br>
             <a href="${webLink}" style="color: #D97706;">${webLink}</a><br>
-            Vous avez deja l'application Buildr ? <a href="${appLink}" style="color: #D97706;">Ouvrir directement dans l'app</a>
+            ${T.hasApp} <a href="${appLink}" style="color: #D97706;">${T.openInApp}</a>
           </p>
         </div>
 
         <p style="color: #A8A29E; font-size: 12px; text-align: center; margin-top: 24px;">
-          Buildr — Gestion de chantiers
+          ${T.tagline}
         </p>
       </div>
     `,

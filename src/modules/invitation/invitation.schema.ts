@@ -3,6 +3,12 @@ import { z } from 'zod';
 export const createInvitationSchema = z.object({
   email: z.string().email().max(255),
   role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional().default('employee'),
+  /**
+   * Langue du mail d'invitation. C'est celui qui invite qui la choisit : lui
+   * seul sait dans quelle langue son collaborateur travaille. Le francais par
+   * defaut, pour ne rien casser des appelants existants.
+   */
+  locale: z.enum(['fr', 'en', 'de', 'es', 'it', 'pt', 'tr', 'pl']).optional().default('fr'),
 });
 
 export type CreateInvitation = z.infer<typeof createInvitationSchema>;
@@ -14,6 +20,7 @@ export type InvitationRow = {
   role: 'admin' | 'manager' | 'employee' | 'client' | 'gestionnaire_reseau';
   token: string;
   status: 'pending' | 'accepted' | 'expired';
+  locale: string;
   expires_at: string;
   organization_id: string;
   created_at: string;
