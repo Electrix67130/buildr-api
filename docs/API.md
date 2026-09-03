@@ -345,6 +345,25 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 | POST | `/invitations/:token/accept` | Non | Accepter une invitation |
 | DELETE | `/invitations/:id` | JWT | Annuler une invitation (admin ou manager, meme organisation) |
 
+### Langue des e-mails
+
+Deux mecanismes, parce que les deux situations different.
+
+**Invitation** : `POST /invitations` accepte un champ `locale`. C'est celui qui
+invite qui tranche — on ne connait pas encore l'invite, et son employeur est le
+seul a savoir dans quelle langue il travaille.
+
+**Reinitialisation de mot de passe** : la langue vient de `user.locale`.
+Personne ne peut la choisir au moment de l'envoi, puisque c'est l'utilisateur
+qui declenche la demande et qu'il n'est pas connecte. Elle est donc renseignee a
+l'inscription : depuis l'invitation quand il y en a une, sinon depuis le champ
+`locale` de `POST /auth/register`.
+
+**Limite connue** : le lien de reinitialisation est un lien profond
+`buildr://reset-password/<token>`, et le dashboard n'a pas d'ecran de
+reinitialisation. Quiconque fait la demande depuis le web recoit donc un lien
+que seul un telephone avec l'application sait ouvrir.
+
 ### POST /invitations — langue du mail
 
 Le corps accepte un champ `locale` parmi `fr, en, de, es, it, pt, tr, pl`,

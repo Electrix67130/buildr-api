@@ -14,6 +14,12 @@ export const registerSchema = z.object({
   company_name: z.string().max(200).optional(),
   invitation_token: z.string().optional(),
   platform: platformEnum.optional().default('web'),
+  /**
+   * Langue de l'interface au moment de l'inscription. Sert aux e-mails futurs.
+   * Ignoree si une invitation est fournie : la langue de l'invitation prime,
+   * l'employeur ayant deja tranche pour son collaborateur.
+   */
+  locale: z.enum(['fr', 'en', 'de', 'es', 'it', 'pt', 'tr', 'pl']).optional(),
 
   // Infos légales de la nouvelle organisation. Ignorées si invitation_token est fourni
   // (l'utilisateur rejoint une orga existante).

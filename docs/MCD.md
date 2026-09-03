@@ -31,8 +31,16 @@ ORM : Knex 3
 | `deleted_at` | timestamp | nullable, INDEX — compte supprime par l'utilisateur (anonymise) |
 | `created_at` | timestamp | NOT NULL, default now |
 | `updated_at` | timestamp | NOT NULL, default now |
+| `locale` | varchar(5) | NOT NULL, default `fr` — langue des e-mails |
 
-**Migrations :** `20260412120000_create_user.js`, `20260730210517_add_deleted_at_to_user.js`
+`locale` est renseignee a l'inscription : depuis `invitation.locale` quand il y
+a une invitation, sinon depuis la langue de l'interface. Elle sert au mail de
+reinitialisation de mot de passe, ou personne ne peut choisir la langue au
+moment de l'envoi — c'est l'utilisateur qui declenche la demande, et il n'est
+pas connecte.
+
+**Migrations :** `20260412120000_create_user.js`, `20260730210517_add_deleted_at_to_user.js`,
+`20260903184349_add_locale_to_user.js`
 
 **Note sur la suppression** — la ligne n'est jamais supprimee physiquement : `chantier.created_by`,
 `invitation.invited_by` et `organization.created_by` sont en RESTRICT, donc un DELETE echoue des

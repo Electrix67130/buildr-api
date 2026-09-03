@@ -41,6 +41,8 @@ export type UserRow = {
   phone?: string;
   avatar_url?: string | null;
   role: 'admin' | 'manager' | 'employee' | 'client' | 'gestionnaire_reseau';
+  /** Langue des e-mails qu'on lui envoie. Renseignee a l'inscription. */
+  locale: string;
   company_name?: string;
   is_active: boolean;
   organization_id: string;

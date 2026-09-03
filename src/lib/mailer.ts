@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import env from '@/config/env';
-import { INVITATION, DATE_TAG, isMailLocale, MailLocale } from '@/lib/mail-i18n';
+import { INVITATION, PASSWORD_RESET, DATE_TAG, isMailLocale, MailLocale } from '@/lib/mail-i18n';
 
 const transporter = env.SMTP_HOST
   ? nodemailer.createTransport({
@@ -150,6 +150,50 @@ export function buildInvitationEmail(params: {
           </p>
         </div>
 
+        <p style="color: #A8A29E; font-size: 12px; text-align: center; margin-top: 24px;">
+          ${T.tagline}
+        </p>
+      </div>
+    `,
+  };
+}
+
+export function buildPasswordResetEmail(params: {
+  token: string;
+  /** Langue de l'utilisateur, renseignee a son inscription. */
+  locale?: string;
+}): { subject: string; html: string } {
+  const lang: MailLocale = isMailLocale(params.locale) ? params.locale : 'fr';
+  const T = PASSWORD_RESET[lang];
+
+  // Lien profond uniquement : contrairement a l'invitation, le dashboard n'a
+  // pas d'ecran de reinitialisation. Quiconque demande depuis le web recoit
+  // donc un lien que seul un telephone avec l'app sait ouvrir.
+  const resetLink = `buildr://reset-password/${params.token}`;
+
+  return {
+    subject: T.subject,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="color: #D97706; font-size: 28px; margin: 0;">Buildr</h1>
+          <p style="color: #78716C; margin-top: 4px;">${T.tagline}</p>
+        </div>
+        <div style="background: #FAFAF9; border: 1px solid #E7E5E4; border-radius: 12px; padding: 24px;">
+          <h2 style="color: #1C1917; margin-top: 0;">${T.heading}</h2>
+          <p style="color: #57534E; line-height: 1.6;">${T.intro}</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${resetLink}"
+               style="display: inline-block; background: #D97706; color: white; text-decoration: none;
+                      padding: 12px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+              ${T.cta}
+            </a>
+          </div>
+          <p style="color: #A8A29E; font-size: 13px;">
+            ${T.expires}<br>
+            ${T.ignore}
+          </p>
+        </div>
         <p style="color: #A8A29E; font-size: 12px; text-align: center; margin-top: 24px;">
           ${T.tagline}
         </p>

@@ -25,6 +25,7 @@ class AuthService {
     let finalCompanyName = data.company_name;
     let invitationId: string | null = null;
     let organizationId: string | null = null;
+    let invitationLocale: string | null = null;
 
     // If registering via invitation: use invitation's email, role and organization_id
     if (data.invitation_token) {
@@ -41,6 +42,10 @@ class AuthService {
       finalRole = invitation.role;
       invitationId = invitation.id;
       organizationId = invitation.organization_id;
+      // La langue choisie par l'employeur prime sur celle de l'interface : il a
+      // deja tranche pour son collaborateur en l'invitant, et c'est dans cette
+      // langue que celui-ci a lu son invitation.
+      invitationLocale = invitation.locale;
 
       // Rule: an invited employee is part of the inviter's company → company_name = org name
       // A client may set their own company (e.g. "EIFFAGE" as client of "Buildr SAS")
@@ -87,6 +92,7 @@ class AuthService {
       company_name: finalCompanyName,
       organization_id: organizationId, // legacy column — sera retire en migration B
       active_organization_id: organizationId,
+      locale: invitationLocale ?? data.locale ?? 'fr',
     } as Partial<UserRow>);
 
     // Cree la membership dans la nouvelle table organization_member.
@@ -160,38 +166,12 @@ class AuthService {
     const signature = createHmac('sha256', env.JWT_SECRET).update(data).digest('hex');
     const token = Buffer.from(JSON.stringify({ u: user.id, e: expires, s: signature })).toString('base64url');
 
-    const resetLink = `buildr://reset-password/${token}`;
-    const { sendMail } = await import('@/lib/mailer');
+    const { sendMail, buildPasswordResetEmail } = await import('@/lib/mailer');
+    // La langue vient de l'utilisateur : personne ne peut la choisir ici, c'est
+    // lui qui declenche la demande et il n'est pas connecte.
+    const { subject, html } = buildPasswordResetEmail({ token, locale: user.locale });
 
-    await sendMail({
-      to: email,
-      subject: 'Buildr — Réinitialisation de votre mot de passe',
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="color: #D97706; font-size: 28px; margin: 0;">Buildr</h1>
-            <p style="color: #78716C; margin-top: 4px;">Gestion de chantiers</p>
-          </div>
-          <div style="background: #FAFAF9; border: 1px solid #E7E5E4; border-radius: 12px; padding: 24px;">
-            <h2 style="color: #1C1917; margin-top: 0;">Réinitialisation du mot de passe</h2>
-            <p style="color: #57534E; line-height: 1.6;">
-              Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.
-            </p>
-            <div style="text-align: center; margin: 24px 0;">
-              <a href="${resetLink}"
-                 style="display: inline-block; background: #D97706; color: white; text-decoration: none;
-                        padding: 12px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                Réinitialiser mon mot de passe
-              </a>
-            </div>
-            <p style="color: #A8A29E; font-size: 13px;">
-              Ce lien expire dans 30 minutes.<br>
-              Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.
-            </p>
-          </div>
-        </div>
-      `,
-    });
+    await sendMail({ to: email, subject, html });
 
     return { message: 'If an account exists with this email, a reset link has been sent.' };
   }
