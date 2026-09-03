@@ -166,10 +166,10 @@ export function buildPasswordResetEmail(params: {
   const lang: MailLocale = isMailLocale(params.locale) ? params.locale : 'fr';
   const T = PASSWORD_RESET[lang];
 
-  // Lien profond uniquement : contrairement a l'invitation, le dashboard n'a
-  // pas d'ecran de reinitialisation. Quiconque demande depuis le web recoit
-  // donc un lien que seul un telephone avec l'app sait ouvrir.
-  const resetLink = `buildr://reset-password/${params.token}`;
+  // Le bouton principal pointe sur le web, comme pour l'invitation : la demande
+  // se fait souvent depuis un ordinateur, ou `buildr://` n'ouvre rien.
+  const appLink = `buildr://reset-password/${params.token}`;
+  const webLink = `${env.APP_URL}/reset-password/${params.token}`;
 
   return {
     subject: T.subject,
@@ -183,7 +183,7 @@ export function buildPasswordResetEmail(params: {
           <h2 style="color: #1C1917; margin-top: 0;">${T.heading}</h2>
           <p style="color: #57534E; line-height: 1.6;">${T.intro}</p>
           <div style="text-align: center; margin: 24px 0;">
-            <a href="${resetLink}"
+            <a href="${webLink}"
                style="display: inline-block; background: #D97706; color: white; text-decoration: none;
                       padding: 12px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
               ${T.cta}
@@ -191,7 +191,10 @@ export function buildPasswordResetEmail(params: {
           </div>
           <p style="color: #A8A29E; font-size: 13px;">
             ${T.expires}<br>
-            ${T.ignore}
+            ${T.fallback}<br>
+            <a href="${webLink}" style="color: #D97706;">${webLink}</a><br>
+            ${T.ignore}<br>
+            <a href="${appLink}" style="color: #D97706;">${T.openInApp}</a>
           </p>
         </div>
         <p style="color: #A8A29E; font-size: 12px; text-align: center; margin-top: 24px;">

@@ -359,10 +359,11 @@ qui declenche la demande et qu'il n'est pas connecte. Elle est donc renseignee a
 l'inscription : depuis l'invitation quand il y en a une, sinon depuis le champ
 `locale` de `POST /auth/register`.
 
-**Limite connue** : le lien de reinitialisation est un lien profond
-`buildr://reset-password/<token>`, et le dashboard n'a pas d'ecran de
-reinitialisation. Quiconque fait la demande depuis le web recoit donc un lien
-que seul un telephone avec l'application sait ouvrir.
+Les deux mails pointent leur bouton principal sur le **web**
+(`${APP_URL}/invite/<token>` et `${APP_URL}/reset-password/<token>`), le lien
+profond `buildr://` restant offert en dessous. Un lien profond n'est ouvrable
+que par un telephone ou l'application est installee, alors que ces deux
+parcours commencent souvent sur un ordinateur.
 
 ### POST /invitations — langue du mail
 

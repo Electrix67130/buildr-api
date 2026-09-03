@@ -135,6 +135,7 @@ interface ResetStrings {
   expires: string;
   ignore: string;
   fallback: string;
+  openInApp: string;
   tagline: string;
 }
 
@@ -147,6 +148,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'Ce lien expire dans 30 minutes.',
     ignore: "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.",
     fallback: 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
+    openInApp: 'Ouvrir directement dans l\'app',
     tagline: 'Buildr — Gestion de chantiers',
   },
   en: {
@@ -157,6 +159,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'This link expires in 30 minutes.',
     ignore: 'If you did not make this request, ignore this message: your password remains unchanged.',
     fallback: 'If the button does not work, copy this address into your browser:',
+    openInApp: 'Open directly in the app',
     tagline: 'Buildr — Construction site management',
   },
   de: {
@@ -167,6 +170,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'Dieser Link läuft in 30 Minuten ab.',
     ignore: 'Wenn Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese Nachricht: Ihr Passwort bleibt unverändert.',
     fallback: 'Wenn die Schaltfläche nicht funktioniert, kopieren Sie diese Adresse in Ihren Browser:',
+    openInApp: 'Direkt in der App öffnen',
     tagline: 'Buildr — Baustellenverwaltung',
   },
   es: {
@@ -177,6 +181,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'Este enlace caduca en 30 minutos.',
     ignore: 'Si no ha realizado esta solicitud, ignore este mensaje: su contraseña no cambia.',
     fallback: 'Si el botón no funciona, copie esta dirección en su navegador:',
+    openInApp: 'Abrir directamente en la app',
     tagline: 'Buildr — Gestión de obras',
   },
   it: {
@@ -187,6 +192,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'Questo link scade tra 30 minuti.',
     ignore: 'Se non ha effettuato questa richiesta, ignori questo messaggio: la sua password resta invariata.',
     fallback: 'Se il pulsante non funziona, copi questo indirizzo nel suo browser:',
+    openInApp: 'Apri direttamente nell\'app',
     tagline: 'Buildr — Gestione cantieri',
   },
   pt: {
@@ -197,6 +203,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'Este link expira em 30 minutos.',
     ignore: 'Se não fez este pedido, ignore esta mensagem: a sua palavra-passe permanece inalterada.',
     fallback: 'Se o botão não funcionar, copie este endereço para o seu navegador:',
+    openInApp: 'Abrir diretamente na aplicação',
     tagline: 'Buildr — Gestão de obras',
   },
   tr: {
@@ -207,6 +214,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'Bu bağlantı 30 dakika içinde sona erer.',
     ignore: 'Bu talebi siz yapmadıysanız bu mesajı yok sayın: şifreniz değişmez.',
     fallback: 'Düğme çalışmıyorsa bu adresi tarayıcınıza kopyalayın:',
+    openInApp: 'Doğrudan uygulamada aç',
     tagline: 'Buildr — Şantiye yönetimi',
   },
   pl: {
@@ -217,6 +225,7 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
     expires: 'Ten link wygasa za 30 minut.',
     ignore: 'Jeśli to nie Ty wysłałeś tę prośbę, zignoruj tę wiadomość: Twoje hasło pozostaje bez zmian.',
     fallback: 'Jeśli przycisk nie działa, skopiuj ten adres do przeglądarki:',
+    openInApp: 'Otwórz bezpośrednio w aplikacji',
     tagline: 'Buildr — Zarządzanie budowami',
   },
 };
