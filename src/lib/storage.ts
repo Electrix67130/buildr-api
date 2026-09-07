@@ -8,6 +8,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { FILE_URL_TTL_MS } from '@/lib/sign-url';
 import env from '@/config/env';
 
 /**
@@ -27,7 +28,7 @@ import env from '@/config/env';
 export const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 /** Duree de validite des URLs presignees, alignee sur celle des tokens HMAC. */
-const SIGNED_URL_TTL_SECONDS = 5 * 60;
+const SIGNED_URL_TTL_SECONDS = FILE_URL_TTL_MS / 1000;
 
 const isS3 = env.STORAGE_MODE === 's3';
 

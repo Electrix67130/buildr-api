@@ -4,10 +4,12 @@ import { randomUUID, createHmac } from 'crypto';
 import path from 'path';
 import { z } from 'zod';
 import env from '@/config/env';
+import { FILE_URL_TTL_MS } from '@/lib/sign-url';
 import { putFile, fileExists, getDownloadUrl } from '@/lib/storage';
 import { isImage, isThumbnailable, optimizeImage, generateThumbnail } from '@/lib/image';
 
-const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// Duree partagee avec la signature des reponses : voir lib/sign-url.ts.
+const TOKEN_TTL_MS = FILE_URL_TTL_MS;
 
 /** Generate a signed token: filename + expiry, signed with JWT_SECRET */
 function generateFileToken(filename: string): { token: string; expires: number } {

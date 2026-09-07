@@ -494,9 +494,20 @@ telechargeable directement.
 ### Acces aux fichiers
 
 Les routes de liste (`/photos`, `/documents`, `/emergencies`) reecrivent les
-URLs stockees en **URLs signees valables 5 minutes**, via un token HMAC. Un
-client qui garde une URL en cache doit la regenerer avec
-`GET /files/token/:filename` une fois le delai passe.
+URLs stockees en **URLs signees valables 24 heures**, via un token HMAC. Un
+client qui garde une URL en cache au-dela doit la regenerer avec
+`GET /files/token/:filename`.
+
+La duree etait de 5 minutes, ce qui etait plus court que la duree de vie du
+cache client : l'app conserve la reponse contenant l'URL deja signee et
+redemandait ensuite l'image avec un jeton perime. Le symptome etait muet — la
+galerie se vidait sans message, et les logs de production montraient des jetons
+expires depuis plus de 80 heures.
+
+La valeur vit dans `FILE_URL_TTL_MS` (`src/lib/sign-url.ts`) et est partagee par
+les trois emetteurs : la signature des reponses, le endpoint
+`/files/token/:filename` et l'URL presignee S3. Les trois en avaient leur propre
+copie, ce qui invitait a la derive.
 
 `/files/:filename` est la seule famille de routes accessible **sans cle d'API** :
 le token signe fait foi. Cela permet de l'utiliser directement dans une balise

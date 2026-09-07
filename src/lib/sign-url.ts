@@ -1,7 +1,27 @@
 import { createHmac } from 'crypto';
 import env from '@/config/env';
 
-const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
+/**
+ * Duree de validite d'une URL de fichier signee.
+ *
+ * Elle etait de 5 minutes, ce qui etait plus court que la duree de vie du cache
+ * client : l'app conserve la reponse contenant l'URL DEJA signee, et redemandait
+ * ensuite l'image avec un jeton perime. Resultat, un 403 muet — la galerie se
+ * vidait sans message, et les logs de production montraient des jetons expires
+ * depuis plus de 80 heures.
+ *
+ * 24 heures couvre le cas reel : une app ouverte, mise en arriere-plan, reprise
+ * le lendemain. Le compromis est celui de toute URL presignee — un jeton qui
+ * fuite donne acces a UN fichier pendant la duree restante — et 24 h est la
+ * norme pour de l'affichage de media.
+ *
+ * Partagee par les trois emetteurs : la signature des reponses (ici), le jeton
+ * du endpoint /files/token (plugins/upload.ts) et l'URL presignee S3
+ * (lib/storage.ts). Les trois avaient leur propre copie, ce qui invitait a la
+ * derive.
+ */
+export const FILE_URL_TTL_MS = 24 * 60 * 60 * 1000;
+const TOKEN_TTL_MS = FILE_URL_TTL_MS;
 
 /** Une URL deja signee porte son token en query string. */
 function isSigned(fileUrl: string): boolean {
