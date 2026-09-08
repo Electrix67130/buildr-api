@@ -152,6 +152,19 @@ Sont **supprimes** : `refresh_token`, `push_token`, `calendar_integration`,
 Sont **conserves** : chantiers, photos, documents et messages crees — ils appartiennent a
 l'organisation et apparaissent desormais sous « Compte supprime ».
 
+### Cloisonnement des equipes et des chantiers
+
+`GET /teams/:manager_id` et `DELETE /teams/:id` exigent que l'equipe visee
+appartienne a l'organisation active de l'appelant. Le module lisait la colonne
+vestigiale `user.role`, globale, plutot que `organization_member.role` : etre
+administrateur QUELQUE PART suffisait a lire et defaire les equipes de n'importe
+quelle entreprise.
+
+Le meme defaut existait dans `lib/permissions.ts` : le contournement
+administrateur ne verifiait pas que le chantier appartenait a son organisation.
+Un admin de l'organisation A avait donc tous les droits sur les documents, les
+photos et les discussions des chantiers de l'organisation B.
+
 ### Cloisonnement des routes utilisateur
 
 `GET`, `PATCH` et `DELETE /users/:id` exigent que la cible partage

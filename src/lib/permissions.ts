@@ -29,7 +29,17 @@ export async function hasPermission(
   chantierId: string,
   permission: Permission,
 ): Promise<boolean> {
-  // Admin bypass — base sur la membership active du user
+  const chantier = await db('chantier')
+    .where({ id: chantierId })
+    .select('created_by', 'organization_id')
+    .first();
+  if (!chantier) return false;
+
+  // Admin bypass — base sur la membership active du user, ET limite a son
+  // organisation. Sans cette seconde condition, etre administrateur QUELQUE
+  // PART suffisait : un admin de l'organisation A passait tous les controles
+  // sur les chantiers de l'organisation B — documents, photos, discussions, et
+  // jusqu'au droit d'y ecrire.
   const activeMember = await db('user')
     .leftJoin('organization_member', function () {
       this.on('organization_member.user_id', '=', 'user.id').andOn(
@@ -39,13 +49,13 @@ export async function hasPermission(
       );
     })
     .where('user.id', userId)
-    .select('organization_member.role as role')
+    .select('organization_member.role as role', 'user.active_organization_id as organization_id')
     .first();
-  if (activeMember?.role === 'admin') return true;
+  if (activeMember?.role === 'admin' && activeMember.organization_id === chantier.organization_id) {
+    return true;
+  }
 
   // Chantier creator bypass
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (!chantier) return false;
   if (chantier.created_by === userId) return true;
 
   // Check member permissions

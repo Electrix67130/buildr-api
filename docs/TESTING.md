@@ -1,6 +1,6 @@
 # Tests
 
-292 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+353 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 
@@ -30,6 +30,9 @@ l'etage integration.
 | `mail-content.test.ts` | Contenu des e-mails : liens, langue, format des dates, echappement |
 | `schemas.test.ts` | Validation Zod des entrees : ce qui entre en base et ce qui est rejete |
 | `push-content.test.ts` | Textes des notifications dans les huit langues, et composition de chaque message |
+| `image.test.ts` | Traitement des photos : retrait des metadonnees EXIF, orientation, redimensionnement, miniatures |
+| `crypto.test.ts` | Chiffrement des jetons OAuth : aller-retour, detection d'alteration, jetons aleatoires |
+| `mail-transport.test.ts` | Acheminement des e-mails : choix du transport, version texte, expediteur |
 
 **Integration** (`tests/integration/`) — application complete + base.
 
@@ -43,6 +46,8 @@ l'etage integration.
 | `files.test.ts` | Acces aux fichiers : la seule route sans cle d'API, protegee par le seul jeton signe |
 | `feedback.test.ts` | Signalements : depot, cloisonnement auteur/support, reponse, notification a l'auteur |
 | `push.test.ts` | Envoi des notifications : une langue par destinataire, exclusion de l'acteur, refus des notifications |
+| `chantier-permissions.test.ts` | Droits fins au sein d'un chantier : un drapeau ouvre une ressource et une seule |
+| `team.test.ts` | Equipes : composition, consultation, cloisonnement entre organisations |
 
 Ces axes ont ete choisis parce qu'ils partagent une propriete : leurs defauts ne
 se voient pas a l'usage normal. Il faut connaitre l'identifiant d'une ressource

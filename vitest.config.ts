@@ -26,6 +26,9 @@ const TEST_ENV = {
   APP_URL: 'http://localhost:3001',
   API_PUBLIC_URL: 'http://localhost:3000',
   STORAGE_MODE: 'local',
+  // Cle de test pour le chiffrement des jetons OAuth de calendrier : 32 octets
+  // en hexadecimal, comme l'exige lib/crypto.
+  CALENDAR_ENCRYPTION_KEY: '0'.repeat(64),
 };
 
 // Pour le processus principal (global setup : migrations).
