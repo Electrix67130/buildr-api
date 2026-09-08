@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/permissions';
 import { getActiveMembership } from '@/lib/active-membership';
 import { fireAndForget, syncMemberAdded, syncMemberRemoved } from '@/modules/calendar-integration/sync';
 import { sendPushToUser } from '@/lib/push-notifications';
+import { memberAddedPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
 import { emitToChantier } from '@/lib/realtime-hub';
 
@@ -111,11 +112,7 @@ export default fp(
         await sendPushToUser(
           fastify.db,
           member.user_id,
-          {
-            title: `👋 ${chantierName}`,
-            body: `${actorName} t'a ajouté à ce chantier`,
-            data: { type: 'chantier-member', chantier_id: member.chantier_id },
-          },
+          memberAddedPush({ chantierName, actorName, chantierId: member.chantier_id }),
           fastify.log,
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));

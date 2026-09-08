@@ -6,7 +6,8 @@ import { signUrlsInList } from '@/lib/sign-url';
 import { getActiveMembership } from '@/lib/active-membership';
 import { emitToChantier } from '@/lib/realtime-hub';
 import { sendPushToChantier } from '@/lib/push-notifications';
-import { getActorAndChantierNames, truncate } from '@/lib/push-helpers';
+import { documentAddedPush } from '@/lib/push-i18n';
+import { getActorAndChantierNames } from '@/lib/push-helpers';
 import { requirePermission } from '@/lib/permissions';
 
 const byChantierSchema = z.object({
@@ -73,11 +74,7 @@ export default fp(
           fastify.db,
           data.chantier_id,
           request.user.sub,
-          {
-            title: `📄 ${chantierName}`,
-            body: `${actorName} a ajouté un document : ${truncate(data.name, 60)}`,
-            data: { type: 'document', chantier_id: data.chantier_id },
-          },
+          documentAddedPush({ chantierName, actorName, documentName: data.name, chantierId: data.chantier_id }),
           fastify.log,
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));

@@ -43,7 +43,10 @@ function buildApp(opts: AppOptions = {}) {
           .filter(Boolean)
       : true;
   app.register(cors, { origin: corsOrigin, methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'] });
-  app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+  // Le limiteur protege la production. En test il rejetterait la suite
+  // elle-meme : quelques centaines de requetes en quelques secondes, toutes
+  // depuis la meme adresse.
+  app.register(rateLimit, { max: env.NODE_ENV === 'test' ? 1_000_000 : 100, timeWindow: '1 minute' });
   app.register(sensible);
 
   // File handling

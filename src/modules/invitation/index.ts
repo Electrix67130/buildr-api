@@ -2,7 +2,6 @@ import fp from 'fastify-plugin';
 import { z } from 'zod';
 import InvitationService from './invitation.service';
 import { createInvitationSchema } from './invitation.schema';
-import { getUserOrganizationId } from '@/lib/org-scope';
 import { getActiveMembership } from '@/lib/active-membership';
 
 const paginationSchema = z.object({
@@ -17,14 +16,41 @@ export default fp(
   (fastify, _opts, done) => {
     const service = new InvitationService(fastify.db);
 
-    // GET /invitations — list pending invitations (scoped to current org)
-    fastify.get('/invitations', { preHandler: [fastify.authenticate] }, async (request) => {
+    /**
+     * GET /invitations — invitations en attente de l'organisation courante.
+     *
+     * Deux protections, pour la meme raison. La liste est reservee aux admins et
+     * aux managers, comme la creation et l'annulation : gerer les invitations est
+     * un acte d'administration.
+     *
+     * Et le `token` ne sort plus. Il sortait auparavant pour tout membre
+     * authentifie — or `POST /auth/register` accepte n'importe quel jeton en
+     * attente SANS authentification, avec le role qu'il porte. Un ouvrier
+     * pouvait donc lire le jeton de l'invitation admin d'un collegue, s'en
+     * servir, et se retrouver administrateur de l'entreprise. Le jeton ne doit
+     * exister qu'a deux endroits : la base, et le mail de son destinataire.
+     */
+    fastify.get('/invitations', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+      const membership = await getActiveMembership(fastify.db, request.user.sub);
+      if (membership?.role !== 'admin' && membership?.role !== 'manager') {
+        return reply.code(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: 'Only admins and managers can list invitations',
+        });
+      }
+
       const query = paginationSchema.parse(request.query);
-      const orgId = await getUserOrganizationId(fastify.db, request.user.sub);
+      const orgId = membership.organization_id;
       const { page = 1, limit = 20 } = query;
       const baseQuery = fastify.db('invitation').where('organization_id', orgId);
       const [{ count }] = (await baseQuery.clone().count('* as count')) as { count: string }[];
-      const data = await baseQuery.clone().select('*').orderBy('created_at', 'desc').limit(limit).offset((page - 1) * limit);
+      const data = await baseQuery
+        .clone()
+        .select('id', 'email', 'role', 'status', 'locale', 'invited_by', 'expires_at', 'created_at', 'organization_id')
+        .orderBy('created_at', 'desc')
+        .limit(limit)
+        .offset((page - 1) * limit);
       return { data, meta: { total: parseInt(count, 10), page, limit, totalPages: Math.ceil(parseInt(count, 10) / limit) } };
     });
 

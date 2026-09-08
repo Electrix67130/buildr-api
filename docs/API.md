@@ -117,12 +117,12 @@ acceptes sans controle de session, jusqu'a la prochaine connexion.
 | Methode | Route | Auth | Description |
 |---|---|---|---|
 | GET | `/users` | JWT | Liste paginee (scopee par role — voir ci-dessous) |
-| GET | `/users/:id` | JWT | Detail |
+| GET | `/users/:id` | JWT | Detail (membre de son organisation, ou soi-meme) |
 | GET | `/users/search?q=xxx` | JWT | Recherche par nom/email/entreprise |
 | POST | `/users` | JWT | Creer |
-| PATCH | `/users/:id` | JWT | Modifier |
+| PATCH | `/users/:id` | JWT | Modifier (soi-meme, ou un membre de son organisation si admin) |
 | DELETE | `/users/me` | JWT | Supprimer son propre compte (voir ci-dessous) |
-| DELETE | `/users/:id` | JWT | Supprimer (admin uniquement) |
+| DELETE | `/users/:id` | JWT | Supprimer (admin, membre de son organisation uniquement) |
 
 ### DELETE /users/me — Suppression de son compte
 
@@ -151,6 +151,38 @@ Sont **supprimes** : `refresh_token`, `push_token`, `calendar_integration`,
 
 Sont **conserves** : chantiers, photos, documents et messages crees — ils appartiennent a
 l'organisation et apparaissent desormais sous « Compte supprime ».
+
+### Cloisonnement des routes utilisateur
+
+`GET`, `PATCH` et `DELETE /users/:id` exigent que la cible partage
+l'organisation active de l'appelant (l'edition de son propre profil restant
+toujours permise). Une cible d'une autre organisation repond **404**, jamais
+403 : dire « interdit » confirmerait que l'identifiant existe.
+
+Seul le champ `role` etait cloisonne auparavant. Un admin de l'organisation A
+qui connaissait un identifiant de l'organisation B pouvait donc lire ce profil,
+desactiver le compte, changer son adresse, ou le supprimer — et la cascade sur
+`company_name`, indexee sur l'organisation de l'**editeur**, renommait au passage
+sa propre organisation.
+
+### Au moins un administrateur par organisation
+
+Retrograder ou supprimer le dernier `admin` d'une organisation repond **409**.
+Sans ce garde-fou, plus personne ne peut inviter, gerer les comptes ni creer de
+chantier, et l'API n'offre aucune voie de retour — il faudrait un acces direct a
+la base. La suppression de son PROPRE compte (`DELETE /users/me`) n'est pas
+concernee : l'App Store l'exige sans condition.
+
+### PATCH /users/:id — langue du compte
+
+Le champ `locale` (`fr | en | de | es | it | pt | tr | pl`) fixe la langue des
+**e-mails et des notifications** envoyes a ce compte. Chacun peut modifier la
+sienne ; les clients l'envoient quand l'utilisateur change la langue de
+l'interface.
+
+Sans lui, `user.locale` etait renseigne a l'inscription puis fige a jamais :
+quelqu'un qui passait l'application en allemand continuait de recevoir ses
+e-mails de reinitialisation et ses notifications en francais, sans aucun recours.
 
 ### PATCH /users/:id — le role vit sur la membership
 
@@ -340,10 +372,22 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 
 | Methode | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/invitations` | JWT | Liste des invitations |
+| GET | `/invitations` | JWT | Liste des invitations (admin ou manager, **sans le `token`**) |
 | POST | `/invitations` | JWT | Inviter un collaborateur |
 | POST | `/invitations/:token/accept` | Non | Accepter une invitation |
 | DELETE | `/invitations/:id` | JWT | Annuler une invitation (admin ou manager, meme organisation) |
+
+### Le jeton ne sort jamais de la liste
+
+`GET /invitations` est reserve aux **admins et managers**, et sa projection omet
+le champ `token`.
+
+Les deux tiennent a la meme raison : `POST /auth/register` accepte n'importe quel
+jeton en attente **sans authentification**, avec le role qu'il porte. Tant que la
+liste sortait le jeton pour tout membre authentifie, un ouvrier pouvait lire
+celui de l'invitation admin d'un collegue, s'en servir, et devenir
+administrateur de l'entreprise. Le jeton ne doit exister qu'a deux endroits : la
+base, et le mail de son destinataire.
 
 ### Langue des e-mails
 
@@ -461,6 +505,80 @@ le bundle mobile.
 
 Les signalements remontent dans la page `/admin/errors` du dashboard, aux cotes
 des erreurs 500 de l'API (`source: "api"`).
+
+---
+
+## Signalements utilisateur (bugs et suggestions)
+
+A ne pas confondre avec `/error-reports`, qui collecte les plantages
+automatiquement. Ici c'est un humain qui ecrit, et il attend une reponse.
+
+| Methode | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/feedbacks` | JWT | Deposer un bug ou une suggestion |
+| GET | `/feedbacks/mine` | JWT | Ses propres signalements et les reponses recues |
+| GET | `/feedbacks/mine/:id` | JWT | Le detail d'un de ses signalements |
+| GET | `/super-admin/feedbacks` | JWT + super admin | Tous les signalements, filtrables |
+| GET | `/super-admin/feedbacks/:id` | JWT + super admin | Fiche complete avec auteur |
+| PATCH | `/super-admin/feedbacks/:id` | JWT + super admin | Changer le statut, ecrire une reponse |
+
+**POST /feedbacks — body :**
+```json
+{
+  "type": "bug | suggestion (requis)",
+  "subject": "string (requis, 3 a 150)",
+  "message": "string (requis, 10 a 5000)",
+  "platform": "mobile | web (optionnel)",
+  "app_version": "string (optionnel, max 40)",
+  "screen": "string (optionnel, max 200)",
+  "locale": "fr | en | de | es | it | pt | tr | pl (optionnel)"
+}
+```
+
+`organization_id` est deduit de l'organisation active — il n'est pas accepte dans
+le body. Un utilisateur sans organisation active peut deposer malgre tout : c'est
+peut-etre precisement de cela qu'il veut parler. `locale` retombe sur la langue du
+compte : c'est dans celle-la qu'il faut repondre.
+
+**Reponse 201** : la ligne creee, avec `status: "new"`.
+
+**GET /feedbacks/mine** : liste paginee. Chacun ne voit que les siens ; le
+signalement d'autrui repond **404** et non 403, pour ne pas confirmer son
+existence.
+
+**GET /super-admin/feedbacks** — parametres : `page`, `limit`, `status`, `type`,
+`q`. La recherche `q` porte sur le sujet, le message et l'adresse de l'auteur.
+Reponse : `{ data, meta, counts }`, ou `counts` donne le nombre de signalements
+par statut. Le tri place les `new` en tete, puis les `in_progress`, puis le
+reste — une console de support se lit par ce qui reste a traiter. Chaque ligne
+est enrichie de `author_email`, `author_first_name`, `author_last_name`,
+`organization_name` et `responder_email`.
+
+**PATCH /super-admin/feedbacks/:id — body :**
+```json
+{
+  "status": "new | in_progress | resolved | declined (optionnel)",
+  "response": "string | null (optionnel, max 5000)"
+}
+```
+
+Au moins un des deux champs est requis. Ecrire une reponse passe le statut a
+`resolved` sauf si un autre est precise explicitement : repondre, c'est traiter.
+Passer `response: null` retire la reponse et efface le repondant. Chaque appel
+laisse une ligne dans `audit_log` (`action: "feedback.respond"`) : ecrire a un
+utilisateur au nom du produit doit rester attribuable.
+
+Ecrire une **nouvelle** reponse envoie une notification push a l'auteur, dans la
+langue du signalement (`locale`), avec `data: { type: "feedback", feedback_id }` —
+l'app mobile ouvre alors l'ecran des signalements. Ni un simple changement de
+statut, ni le reenregistrement du meme texte ne renotifient : classer un
+signalement n'est pas une nouvelle a annoncer. L'envoi est detache de la reponse
+HTTP, et un echec cote Expo ne fait jamais perdre une reponse deja enregistree.
+Le refus des notifications (`user.push_enabled`) est respecte.
+
+La console support n'est **pas** ouverte aux administrateurs d'organisation : un
+signalement peut parler d'un collegue ou d'un client, il va au support, pas a la
+hierarchie de l'entreprise.
 
 ---
 
@@ -736,3 +854,13 @@ Enregistrement des tokens Expo Push par device et toggle global ON/OFF par user.
 | PATCH | `/push-tokens/preference` | JWT | `{ enabled: boolean }` | Active/desactive globalement les pushs pour le user (set `user.push_enabled`). Reponse : `{ push_enabled }`. |
 
 Quand `user.push_enabled = false`, l'envoi est skip pour cet user dans `sendPushToUsers`. Les tokens dont Expo retourne `DeviceNotRegistered` sont automatiquement nettoyes en BDD.
+
+**Langue.** Chaque destinataire recoit la notification dans la langue de son
+compte (`user.locale`), francais a defaut. Une meme notification de chantier peut
+donc partir en plusieurs langues : l'API d'Expo acceptant des messages
+differents dans un meme lot, cela ne coute aucun appel reseau supplementaire.
+Seule exception, la reponse a un signalement suit la langue du **signalement**,
+pas celle du compte : c'est la langue dans laquelle la personne a ecrit.
+
+Les textes vivent tous dans `src/lib/push-i18n.ts`, avec un constructeur par
+type de notification. Aucun module ne compose de texte lui-meme.

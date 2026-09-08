@@ -7,6 +7,7 @@ import { signUrlsInList } from '@/lib/sign-url';
 import { getActiveMembership } from '@/lib/active-membership';
 import { emitToChantier } from '@/lib/realtime-hub';
 import { sendPushToChantier } from '@/lib/push-notifications';
+import { emergencyPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
 
 const byChantierSchema = z.object({
@@ -101,11 +102,7 @@ export default fp(
           fastify.db,
           data.chantier_id,
           request.user.sub,
-          {
-            title: isClaim ? `📢 Réclamation — ${chantierName}` : `🚨 Urgence — ${chantierName}`,
-            body: isClaim ? `${actorName} a fait une réclamation` : `${actorName} a signalé une urgence`,
-            data: { type: 'emergency', chantier_id: data.chantier_id, emergency_id: created.id },
-          },
+          emergencyPush({ chantierName, actorName, chantierId: data.chantier_id, emergencyId: created.id, isClaim }),
           fastify.log,
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));

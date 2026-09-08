@@ -5,7 +5,8 @@ import { createEmergencyCommentSchema, updateEmergencyCommentSchema } from './em
 import { getActiveMembership } from '@/lib/active-membership';
 import { emitToChantier } from '@/lib/realtime-hub';
 import { sendPushToChantier } from '@/lib/push-notifications';
-import { getActorAndChantierNames, truncate } from '@/lib/push-helpers';
+import { commentPush } from '@/lib/push-i18n';
+import { getActorAndChantierNames } from '@/lib/push-helpers';
 
 const byEmergencySchema = z.object({
   emergency_id: z.string().uuid(),
@@ -44,11 +45,14 @@ export default fp(
             fastify.db,
             emergency.chantier_id,
             request.user.sub,
-            {
-              title: `🚨 ${chantierName}`,
-              body: `${actorName} : ${truncate(data.content, 100)}`,
-              data: { type: 'emergency-comment', chantier_id: emergency.chantier_id, emergency_id: data.emergency_id },
-            },
+            commentPush({
+              chantierName,
+              actorName,
+              content: data.content,
+              chantierId: emergency.chantier_id,
+              onEmergency: true,
+              emergencyId: data.emergency_id,
+            }),
             fastify.log,
           );
         })().catch((err) => fastify.log.error({ err }, 'Push send failed'));

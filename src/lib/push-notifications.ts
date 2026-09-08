@@ -19,6 +19,18 @@ export interface PushPayload {
   sound?: 'default' | null;
 }
 
+/**
+ * Message a envoyer : soit un texte unique, soit une fonction de la langue du
+ * destinataire.
+ *
+ * La seconde forme existe parce qu'une notification de chantier part a plusieurs
+ * personnes a la fois, qui ne parlent pas forcement la meme langue — un chantier
+ * peut employer un chef francophone et des ouvriers qui ne le sont pas. La
+ * langue passee est celle du compte (`user.locale`), telle quelle : c'est au
+ * constructeur de decider quoi faire d'une valeur inconnue.
+ */
+export type PushContent = PushPayload | ((locale: string) => PushPayload);
+
 interface ExpoPushTicket {
   status: 'ok' | 'error';
   id?: string;
@@ -41,31 +53,53 @@ interface ExpoPushResponse {
 export async function sendPushToUsers(
   db: Knex,
   userIds: string[],
-  payload: PushPayload,
+  content: PushContent,
   log?: { error: (...args: unknown[]) => void; info?: (...args: unknown[]) => void },
 ): Promise<void> {
   if (userIds.length === 0) return;
 
-  // Filtrer les users avec push_enabled=true
+  // Filtrer les users avec push_enabled=true. On lit aussi leur langue : deux
+  // destinataires d'une meme notification peuvent la recevoir dans deux langues
+  // differentes.
   const enabledUsers = (await db('user')
     .whereIn('id', userIds)
     .where({ push_enabled: true })
-    .select('id')) as { id: string }[];
+    .select('id', 'locale')) as { id: string; locale: string | null }[];
   if (enabledUsers.length === 0) return;
 
   const enabledIds = enabledUsers.map((u) => u.id);
   const tokenRows = (await db('push_token')
     .whereIn('user_id', enabledIds)
-    .select('token')) as { token: string }[];
+    .select('token', 'user_id')) as { token: string; user_id: string }[];
   if (tokenRows.length === 0) return;
 
-  const messages = tokenRows.map((row) => ({
-    to: row.token,
-    sound: payload.sound === null ? null : 'default',
-    title: payload.title,
-    body: payload.body,
-    data: payload.data ?? {},
-  }));
+  const localeByUser = new Map(enabledUsers.map((u) => [u.id, u.locale ?? 'fr']));
+  // Un texte par langue, pas par destinataire : sur un chantier de trente
+  // personnes, le constructeur tourne au plus huit fois.
+  const parLangue = new Map<string, PushPayload>();
+  const resoudre = (userId: string): PushPayload => {
+    if (typeof content !== 'function') return content;
+    const langue = localeByUser.get(userId) ?? 'fr';
+    let texte = parLangue.get(langue);
+    if (!texte) {
+      texte = content(langue);
+      parLangue.set(langue, texte);
+    }
+    return texte;
+  };
+
+  // L'API d'Expo accepte des messages differents dans un meme lot : traduire ne
+  // coute donc aucun appel reseau supplementaire.
+  const messages = tokenRows.map((row) => {
+    const payload = resoudre(row.user_id);
+    return {
+      to: row.token,
+      sound: payload.sound === null ? null : 'default',
+      title: payload.title,
+      body: payload.body,
+      data: payload.data ?? {},
+    };
+  });
 
   // Batch d'envoi.
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
@@ -107,10 +141,10 @@ export async function sendPushToUsers(
 export async function sendPushToUser(
   db: Knex,
   userId: string,
-  payload: PushPayload,
+  content: PushContent,
   log?: { error: (...args: unknown[]) => void; info?: (...args: unknown[]) => void },
 ): Promise<void> {
-  return sendPushToUsers(db, [userId], payload, log);
+  return sendPushToUsers(db, [userId], content, log);
 }
 
 /**
@@ -121,7 +155,7 @@ export async function sendPushToChantier(
   db: Knex,
   chantierId: string,
   excludeUserId: string | null,
-  payload: PushPayload,
+  content: PushContent,
   log?: { error: (...args: unknown[]) => void; info?: (...args: unknown[]) => void },
 ): Promise<void> {
   const chantier = await db('chantier')
@@ -145,5 +179,5 @@ export async function sendPushToChantier(
 
   if (excludeUserId) userIds.delete(excludeUserId);
 
-  return sendPushToUsers(db, Array.from(userIds), payload, log);
+  return sendPushToUsers(db, Array.from(userIds), content, log);
 }

@@ -97,6 +97,36 @@ export async function sendMail({ to, subject, html }: SendMailOptions): Promise<
   });
 }
 
+/**
+ * Echappe le texte libre avant de l'inserer dans le HTML d'un e-mail.
+ *
+ * Le prenom et le nom sont choisis librement a l'inscription et repris tels
+ * quels dans le message. Sans echappement, quiconque cree un compte peut se
+ * nommer `<a href="https://malveillant/">Confirmez votre compte</a>`, inviter
+ * l'adresse de son choix, et faire expedier un lien de hameconnage par nos
+ * serveurs — signe DKIM, depuis notre domaine, avec toute la confiance que cela
+ * inspire.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Version texte du meme nom, pour l'objet du message.
+ *
+ * L'objet n'est pas du HTML : l'y echapper afficherait `&amp;` a la place d'une
+ * esperluette dans « Dupont & Fils ». On retire donc les balises plutot que de
+ * les neutraliser.
+ */
+function stripTags(text: string): string {
+  return text.replace(/<[^>]*>/g, '').trim();
+}
+
 export function buildInvitationEmail(params: {
   inviterName: string;
   email: string;
@@ -120,9 +150,10 @@ export function buildInvitationEmail(params: {
     year: 'numeric',
   });
   const roleLabel = T.roles[params.role] ?? params.role;
+  const inviterHtml = escapeHtml(params.inviterName);
 
   return {
-    subject: T.subject(params.inviterName),
+    subject: T.subject(stripTags(params.inviterName)),
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
         <div style="text-align: center; margin-bottom: 32px;">
@@ -132,7 +163,7 @@ export function buildInvitationEmail(params: {
 
         <div style="background: #FAFAF9; border: 1px solid #E7E5E4; border-radius: 12px; padding: 24px;">
           <h2 style="color: #1C1917; margin-top: 0;">${T.heading}</h2>
-          <p style="color: #57534E; line-height: 1.6;">${T.intro(params.inviterName, roleLabel)}</p>
+          <p style="color: #57534E; line-height: 1.6;">${T.intro(inviterHtml, roleLabel)}</p>
 
           <div style="text-align: center; margin: 24px 0;">
             <a href="${webLink}"

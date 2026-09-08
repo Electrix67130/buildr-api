@@ -475,3 +475,49 @@ gerees de l'API **et** les plantages remontes par les clients via
 **Index :** `idx_error_log_source_created` (source, created_at)
 
 **Migrations :** `20260511120000_super_admin_setup.js`, `20260814140000_error_log_client_context.js`
+
+---
+
+## Table : `feedback`
+
+Signalements ecrits par les utilisateurs : bugs rencontres et suggestions de
+fonctionnalites. Distincte de `error_log`, qui collecte les plantages
+automatiquement — ici c'est un humain qui ecrit, et il attend une reponse. Les
+deux se completent : `error_log` dit ce qui a casse, `feedback` dit ce qui
+derange.
+
+Consultee depuis la page `/admin/feedback` du dashboard. L'auteur relit ses
+propres signalements et les reponses recues depuis l'app mobile ou le dashboard.
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `user_id` | uuid | NOT NULL, FK -> `user.id` CASCADE — auteur |
+| `organization_id` | uuid | nullable, FK -> `organization.id` SET NULL — organisation au moment de l'envoi |
+| `type` | varchar(20) | NOT NULL — `bug` \| `suggestion` |
+| `subject` | varchar(150) | NOT NULL |
+| `message` | text | NOT NULL |
+| `status` | varchar(20) | NOT NULL, default `new` — `new` \| `in_progress` \| `resolved` \| `declined` |
+| `platform` | varchar(20) | nullable — `mobile` \| `web` |
+| `app_version` | varchar(40) | nullable |
+| `screen` | varchar(200) | nullable — ecran ou page d'origine |
+| `locale` | varchar(5) | NOT NULL, default `fr` — langue du message, donc de la reponse |
+| `response` | text | nullable — reponse du support, visible par l'auteur |
+| `responded_by` | uuid | nullable, FK -> `user.id` SET NULL |
+| `responded_at` | timestamp | nullable |
+| `created_at` | timestamp | NOT NULL, default now |
+| `updated_at` | timestamp | NOT NULL, default now |
+
+**Index :** `idx_feedback_status_created` (status, created_at), `idx_feedback_user` (user_id)
+
+**CASCADE sur `user_id`** : supprimer son compte doit effacer ce qu'on a ecrit,
+c'est ce que promet la suppression de compte. **SET NULL sur
+`organization_id`** : le signalement garde sa valeur meme si l'organisation
+disparait.
+
+La reponse vit dans la ligne du signalement plutot que dans une table de
+messages : un aller-retour suffit a l'usage vise. Passer a une vraie
+conversation demanderait une table dediee, et cette colonne s'y migrerait comme
+premier message.
+
+**Migration :** `20260908194324_create_feedback.js`

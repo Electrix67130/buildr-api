@@ -12,7 +12,8 @@ npm run migrate:make     # Creer une migration (ex: npm run migrate:make -- crea
 npm run migrate:rollback # Rollback la derniere migration
 npm run seed             # Lancer les seeds
 npm run seed:make        # Creer un seed
-npm test                 # Lancer les tests
+npm run test:db:up       # Demarrer la base de test (docker, port 5433)
+npm test                 # Lancer les tests (voir docs/TESTING.md)
 ```
 
 ## Architecture
@@ -33,7 +34,12 @@ src/
 └── server.ts        # Point d'entree (listen)
 docs/
 ├── API.md           # Reference des endpoints (pour le frontend)
-└── MCD.md           # Schema de la BDD (MCD complet)
+├── MCD.md           # Schema de la BDD (MCD complet)
+└── TESTING.md       # Comment lancer et ecrire les tests
+tests/
+├── helpers/         # Fabriques, base, instanciation de l'app
+├── unit/            # Fonctions pures, sans base
+└── integration/     # App complete + PostgreSQL, via app.inject()
 ```
 
 ## Principes fondamentaux
@@ -99,6 +105,19 @@ exports.up = function (knex) {
 };
 exports.down = function (knex) { return knex.schema.dropTable('xxx'); };
 ```
+
+## Notifications et e-mails
+
+- **Aucun texte de notification ou d'e-mail dans les modules.** Les push se
+  composent dans `src/lib/push-i18n.ts`, les e-mails dans `src/lib/mail-i18n.ts`
+  (contenu) et `src/lib/mailer.ts` (assemblage). Tant que les textes vivaient
+  dans les modules, chaque nouvelle notification etait ecrite en francais a cote
+  des precedentes sans que personne ne s'en apercoive.
+- **Huit langues, toujours** : fr, en, de, es, it, pt, tr, pl. La liste vit dans
+  `mail-i18n.ts` et n'est declaree qu'une fois.
+- Une notification part souvent a plusieurs personnes : les constructeurs
+  renvoient une fonction de la langue du destinataire, pas un texte fige.
+- **Vouvoiement** dans toutes les langues qui le distinguent.
 
 ## Documentation — Regle obligatoire
 

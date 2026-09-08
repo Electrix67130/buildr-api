@@ -5,7 +5,8 @@ import { createCommentSchema, updateCommentSchema } from './comment.schema';
 import { requirePermission } from '@/lib/permissions';
 import { emitToChantier } from '@/lib/realtime-hub';
 import { sendPushToChantier } from '@/lib/push-notifications';
-import { getActorAndChantierNames, truncate } from '@/lib/push-helpers';
+import { commentPush } from '@/lib/push-i18n';
+import { getActorAndChantierNames } from '@/lib/push-helpers';
 
 const byChantierSchema = z.object({
   chantier_id: z.string().uuid(),
@@ -66,11 +67,7 @@ export default fp(
           fastify.db,
           data.chantier_id,
           request.user.sub,
-          {
-            title: `💬 ${chantierName}`,
-            body: `${actorName} : ${truncate(data.content, 100)}`,
-            data: { type: 'comment', chantier_id: data.chantier_id },
-          },
+          commentPush({ chantierName, actorName, content: data.content, chantierId: data.chantier_id }),
           fastify.log,
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));

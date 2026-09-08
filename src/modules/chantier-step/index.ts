@@ -4,6 +4,7 @@ import { Knex } from 'knex';
 import ChantierStepService, { ChantierSubstepService } from './chantier-step.service';
 import { getActiveMembership } from '@/lib/active-membership';
 import { sendPushToChantier } from '@/lib/push-notifications';
+import { substepValidatedPush, stepValidatedPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
 import {
   createStepSchema,
@@ -234,11 +235,7 @@ export default fp(
               fastify.db,
               chantierId,
               request.user.sub,
-              {
-                title: `✅ ${chantierName}`,
-                body: `${actorName} a validé : ${updated.name}`,
-                data: { type: 'substep-validated', chantier_id: chantierId, substep_id: id },
-              },
+              substepValidatedPush({ chantierName, actorName, substepName: updated.name, chantierId, substepId: id }),
               fastify.log,
             );
           })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
@@ -273,11 +270,7 @@ export default fp(
               fastify.db,
               chantierId,
               request.user.sub,
-              {
-                title: `✅ ${chantierName}`,
-                body: `${actorName} a validé l'étape : ${updated.name}`,
-                data: { type: 'step-validated', chantier_id: chantierId, step_id: id },
-              },
+              stepValidatedPush({ chantierName, actorName, stepName: updated.name, chantierId, stepId: id }),
               fastify.log,
             );
           })().catch((err) => fastify.log.error({ err }, 'Push send failed'));

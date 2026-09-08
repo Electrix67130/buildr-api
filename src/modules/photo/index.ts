@@ -5,6 +5,7 @@ import { createPhotoSchema } from './photo.schema';
 import { signUrlsInList } from '@/lib/sign-url';
 import { emitToChantier } from '@/lib/realtime-hub';
 import { sendPushToChantier } from '@/lib/push-notifications';
+import { photoAddedPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
 import { requirePermission } from '@/lib/permissions';
 
@@ -54,11 +55,7 @@ export default fp(
           fastify.db,
           data.chantier_id,
           request.user.sub,
-          {
-            title: `📸 ${chantierName}`,
-            body: `${actorName} a ajouté une photo`,
-            data: { type: 'photo', chantier_id: data.chantier_id },
-          },
+          photoAddedPush({ chantierName, actorName, chantierId: data.chantier_id }),
           fastify.log,
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));

@@ -20,6 +20,14 @@ export const updateUserSchema = z.object({
   role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional(),
   company_name: z.string().max(200).optional(),
   is_active: z.boolean().optional(),
+  /**
+   * Langue des e-mails et des notifications.
+   *
+   * Sans ce champ, `user.locale` etait renseigne a l'inscription puis fige a
+   * jamais : quelqu'un qui changeait la langue de l'application continuait de
+   * recevoir ses e-mails et ses notifications en francais, sans aucun recours.
+   */
+  locale: z.enum(['fr', 'en', 'de', 'es', 'it', 'pt', 'tr', 'pl']).optional(),
 });
 
 // Suppression de son propre compte : on redemande le mot de passe pour qu'un token
