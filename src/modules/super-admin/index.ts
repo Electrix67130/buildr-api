@@ -2,8 +2,7 @@ import fp from 'fastify-plugin';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { requireSuperAdmin, logAudit } from '@/lib/super-admin';
-import { invalidateSessionCache } from '@/lib/session-cache';
-import { closeUserConnections } from '@/lib/realtime-hub';
+import { revokeAllSessions } from '@/lib/sessions';
 import {
   paginationSchema,
   uuidParamSchema,
@@ -30,16 +29,8 @@ export default fp(
      * doit etre purge dans la foulee, sinon la coupure n'agit qu'au bout de
      * trente secondes.
      */
-    const revokeSessions = async (userId: string): Promise<number> => {
-      const deleted = await fastify.db('refresh_token').where({ user_id: userId }).del();
-      await fastify.db('user').where({ id: userId }).update({
-        current_mobile_session_id: null,
-        current_web_session_id: null,
-      });
-      invalidateSessionCache(userId);
-      closeUserConnections(userId, 'logout');
-      return deleted;
-    };
+    const revokeSessions = (userId: string, reason: 'logout' | 'account-disabled' = 'logout') =>
+      revokeAllSessions(fastify.db, userId, reason);
 
     // ---------- Overview ----------
     fastify.get('/super-admin/overview', { preHandler: guard }, async () => {
@@ -295,7 +286,7 @@ export default fp(
       const { id } = uuidParamSchema.parse(request.params);
       const updated = await fastify.db('user').where({ id }).update({ is_active: false });
       if (!updated) return reply.notFound('User not found');
-      await revokeSessions(id);
+      await revokeSessions(id, 'account-disabled');
       await logAudit(fastify.db, {
         super_admin_id: request.user.sub,
         action: 'user.disable',

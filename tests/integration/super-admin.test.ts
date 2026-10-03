@@ -135,7 +135,7 @@ describe('Console super admin', () => {
         url: '/auth/login',
         payload: { email: ouvrier.email, password: TEST_PASSWORD },
       });
-      expect(res.statusCode).toBe(401);
+      expect(res.statusCode).toBe(403);
     });
 
     it("coupe aussi la session en cours", async () => {

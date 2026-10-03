@@ -235,13 +235,24 @@ class AuthService {
 
   async login(email: string, password: string, platform: Platform = 'web') {
     const user = await this.userService.findByEmail(email);
-    if (!user || !user.is_active) {
+    if (!user) {
       throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
+    }
+
+    // Le compte existe et le mot de passe est le bon : la personne a le droit
+    // de savoir pourquoi elle n'entre pas. Avant le mot de passe, on ne dit
+    // rien de plus qu'« identifiants incorrects », pour ne pas confirmer a un
+    // tiers qu'une adresse a un compte.
+    if (!user.is_active) {
+      throw Object.assign(new Error('Ce compte est désactivé. Contactez votre administrateur.'), {
+        statusCode: 403,
+        name: 'AccountDisabled',
+      });
     }
 
     // Un compte qui existait deja quand on l'a invite ne peut pas passer par le

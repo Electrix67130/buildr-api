@@ -100,12 +100,25 @@ l'adresse normalisee ; les clients n'ont rien a faire de particulier.
 
 **Reponse 200 :** meme format que register
 
+**Compte desactive :** `403` avec `error: "AccountDisabled"` — mais seulement
+si le mot de passe est le bon. Avant, la reponse reste le `401` generique :
+confirmer qu'une adresse a un compte, meme desactive, renseignerait un tiers.
+Les clients affichent alors « Ce compte est desactive. Contactez votre
+administrateur » plutot qu'« identifiants incorrects ».
+
 **Sessions par plateforme** — chaque plateforme garde sa propre session active.
 Se connecter sur le mobile n'invalide que la precedente session mobile ; le
 dashboard reste ouvert, et inversement. Une seconde connexion sur la MEME
 plateforme invalide la premiere (token rejete avec un 401 « Session expired
 (logged in elsewhere on this device type) », et WebSocket ferme avec le code
 4001).
+
+**Desactivation (`PATCH /users/:id` avec `is_active: false`, ou la console) :**
+toutes les sessions du compte sont coupees sur-le-champ — jetons de
+rafraichissement supprimes, identifiants de session remis a zero, WebSocket
+fermees avec le code **4002** (`account-disabled`). Les clients reconnaissent
+ce code, se deconnectent et disent pourquoi. Sans cela le jeton d'acces en
+cours restait valable jusqu'a son expiration, un quart d'heure.
 
 `/auth/logout` ne coupe egalement que la session de la plateforme d'ou provient
 le token. Les tokens emis avant l'introduction du claim `platform` restent

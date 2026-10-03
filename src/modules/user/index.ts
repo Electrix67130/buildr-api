@@ -5,6 +5,7 @@ import { updateUserSchema, deleteAccountSchema, toPublicUser } from './user.sche
 import { getUserOrganizationId } from '@/lib/org-scope';
 import { getActiveMembership } from '@/lib/active-membership';
 import { emitToUser } from '@/lib/realtime-hub';
+import { revokeAllSessions } from '@/lib/sessions';
 
 const searchSchema = z.object({
   q: z.string().min(1).max(100),
@@ -182,6 +183,13 @@ export default fp(
 
       const user = await service.update(id, newRole ? { ...userFields, role: newRole } : userFields);
       if (!user) return reply.notFound('User not found');
+
+      // Desactiver un compte le deconnecte partout, tout de suite : l'ecran
+      // qu'il avait sous les yeux se ferme, et son jeton d'acces est rejete
+      // des la requete suivante au lieu de rester valable un quart d'heure.
+      if (data.is_active === false) {
+        await revokeAllSessions(fastify.db, id, 'account-disabled');
+      }
 
       // L'admin qui change company_name d'un membre interne (non-client) propage a toute l'org.
       // Si la cible est un client, c'est la societe du client (pas le nom de l'org) → pas de cascade.

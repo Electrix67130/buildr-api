@@ -177,7 +177,7 @@ describe('Authentification', () => {
       expect(inconnu.json().message).toBe(mauvais.json().message);
     });
 
-    it('refuse un compte desactive', async () => {
+    it("refuse un compte desactive, et le dit quand le mot de passe est le bon", async () => {
       await app.db('user').where({ email: inscription.email }).update({ is_active: false });
 
       const res = await app.inject({
@@ -185,7 +185,51 @@ describe('Authentification', () => {
         url: '/auth/login',
         payload: { email: inscription.email, password: TEST_PASSWORD },
       });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error).toBe('AccountDisabled');
+    });
+
+    it("ne revele pas qu'un compte desactive existe sans le bon mot de passe", async () => {
+      await app.db('user').where({ email: inscription.email }).update({ is_active: false });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: inscription.email, password: 'faux-mot-de-passe' },
+      });
+
       expect(res.statusCode).toBe(401);
+    });
+  });
+
+  /**
+   * Desactiver un compte doit le deconnecter tout de suite, partout. Sans
+   * cela, l'ecran qu'il avait sous les yeux restait utilisable un quart
+   * d'heure, le temps que son jeton d'acces expire.
+   */
+  describe('desactivation par un administrateur', () => {
+    it("coupe la session en cours et le renouvellement", async () => {
+      const { organizationId, admin } = await createOrgWithAdmin(app, 'Alpha TP');
+      const employe = await createUser(app, { organizationId, role: 'employee' });
+      const session = (await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: employe.email, password: TEST_PASSWORD, platform: 'mobile' },
+      })).json();
+      expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(session.access_token) })).statusCode).toBe(200);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/users/${employe.id}`,
+        headers: auth(admin.token),
+        payload: { is_active: false },
+      });
+      expect(res.statusCode).toBe(200);
+
+      expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(session.access_token) })).statusCode).toBe(401);
+      const refresh = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token: session.refresh_token } });
+      expect(refresh.statusCode).toBe(401);
     });
   });
 
