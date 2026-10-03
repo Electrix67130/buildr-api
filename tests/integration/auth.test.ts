@@ -208,6 +208,23 @@ describe('Authentification', () => {
    * cela, l'ecran qu'il avait sous les yeux restait utilisable un quart
    * d'heure, le temps que son jeton d'acces expire.
    */
+  describe('suppression par un administrateur', () => {
+    it("coupe la session en cours", async () => {
+      const { organizationId, admin } = await createOrgWithAdmin(app, 'Alpha TP');
+      const employe = await createUser(app, { organizationId, role: 'employee' });
+      const session = (await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: employe.email, password: TEST_PASSWORD, platform: 'mobile' },
+      })).json();
+
+      const res = await app.inject({ method: 'DELETE', url: `/users/${employe.id}`, headers: auth(admin.token) });
+      expect(res.statusCode).toBe(204);
+
+      expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(session.access_token) })).statusCode).toBe(401);
+    });
+  });
+
   describe('desactivation par un administrateur', () => {
     it("coupe la session en cours et le renouvellement", async () => {
       const { organizationId, admin } = await createOrgWithAdmin(app, 'Alpha TP');

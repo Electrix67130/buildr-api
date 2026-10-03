@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { requireSuperAdmin, logAudit } from '@/lib/super-admin';
 import { revokeAllSessions } from '@/lib/sessions';
+import type { CloseReason } from '@/lib/realtime-hub';
 import {
   paginationSchema,
   uuidParamSchema,
@@ -29,8 +30,7 @@ export default fp(
      * doit etre purge dans la foulee, sinon la coupure n'agit qu'au bout de
      * trente secondes.
      */
-    const revokeSessions = (userId: string, reason: 'logout' | 'account-disabled' = 'logout') =>
-      revokeAllSessions(fastify.db, userId, reason);
+    const revokeSessions = (userId: string, reason: CloseReason = 'logout') => revokeAllSessions(fastify.db, userId, reason);
 
     // ---------- Overview ----------
     fastify.get('/super-admin/overview', { preHandler: guard }, async () => {
@@ -353,6 +353,7 @@ export default fp(
       if (id === request.user.sub) {
         return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot delete yourself' });
       }
+      await revokeSessions(id, 'account-deleted');
       const deleted = await fastify.db('user').where({ id }).del();
       if (!deleted) return reply.notFound('User not found');
       await logAudit(fastify.db, {

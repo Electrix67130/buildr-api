@@ -250,6 +250,10 @@ export default fp(
         });
       }
 
+      // Avant la suppression : les sockets et le cache de session sont en
+      // memoire, ils survivraient a la ligne. La personne voit son ecran se
+      // fermer au lieu de decouvrir le compte disparu a la prochaine action.
+      await revokeAllSessions(fastify.db, id, 'account-deleted');
       const deleted = await service.delete(id);
       if (!deleted) return reply.notFound('User not found');
       return reply.code(204).send();

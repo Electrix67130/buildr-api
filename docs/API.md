@@ -120,6 +120,10 @@ fermees avec le code **4002** (`account-disabled`). Les clients reconnaissent
 ce code, se deconnectent et disent pourquoi. Sans cela le jeton d'acces en
 cours restait valable jusqu'a son expiration, un quart d'heure.
 
+**Suppression (`DELETE /users/me`, `DELETE /users/:id`, console) :** meme
+coupure immediate, code **4003** (`account-deleted`). Le cas typique est le
+dashboard reste ouvert pendant qu'on supprime son compte depuis le telephone.
+
 `/auth/logout` ne coupe egalement que la session de la plateforme d'ou provient
 le token. Les tokens emis avant l'introduction du claim `platform` restent
 acceptes sans controle de session, jusqu'a la prochaine connexion.

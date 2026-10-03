@@ -2,6 +2,7 @@ import { Knex } from 'knex';
 import bcrypt from 'bcrypt';
 import BaseService, { PaginationOptions, PaginatedResult } from '@/lib/base-service';
 import { invalidateSessionCache } from '@/lib/session-cache';
+import { closeUserConnections } from '@/lib/realtime-hub';
 import { UserRow } from './user.schema';
 import { normalizePhone, resolveOrganizationCountry } from '@/lib/phone';
 
@@ -311,8 +312,11 @@ class UserService extends BaseService<UserRow> {
         });
     });
 
-    // Invalide sans attendre les access tokens encore en circulation (cache TTL 30s).
+    // Invalide sans attendre les access tokens encore en circulation (cache TTL 30s),
+    // et ferme les autres appareils : le dashboard reste ouvert pendant qu'on
+    // supprime son compte depuis le telephone, il doit l'apprendre tout de suite.
     invalidateSessionCache(userId);
+    closeUserConnections(userId, 'account-deleted');
   }
 }
 

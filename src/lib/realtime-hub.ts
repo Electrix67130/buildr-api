@@ -131,15 +131,21 @@ export async function emitToChantier(
  *   Le frontend reconnait ce code custom pour declencher un logout immediat.
  * - 'account-disabled' (code 4002) : le compte vient d'etre desactive. Le
  *   frontend se deconnecte et dit pourquoi.
+ * - 'account-deleted' (code 4003) : le compte vient d'etre supprime, par
+ *   lui-meme depuis un autre appareil, par un administrateur ou la console.
  */
-export function closeUserConnections(
-  userId: string,
-  reason: 'logout' | 'session-replaced' | 'account-disabled' = 'logout',
-  platform?: Platform,
-): void {
+export type CloseReason = 'logout' | 'session-replaced' | 'account-disabled' | 'account-deleted';
+const CLOSE_CODES: Record<CloseReason, number> = {
+  logout: 1000,
+  'session-replaced': 4001,
+  'account-disabled': 4002,
+  'account-deleted': 4003,
+};
+
+export function closeUserConnections(userId: string, reason: CloseReason = 'logout', platform?: Platform): void {
   const set = connections.get(userId);
   if (!set) return;
-  const code = reason === 'session-replaced' ? 4001 : reason === 'account-disabled' ? 4002 : 1000;
+  const code = CLOSE_CODES[reason];
 
   for (const ws of set) {
     // Sans plateforme precisee on ferme tout (action d'administration, logout
