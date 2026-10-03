@@ -55,8 +55,15 @@ class UserService extends BaseService<UserRow> {
     return { ...data, phone: normalizePhone(data.phone, country) };
   }
 
+  /**
+   * Recherche insensible a la casse : l'index unique porte sur `lower(email)`
+   * et les ecritures sont normalisees, mais une adresse peut encore arriver
+   * telle que tapee par un appelant qui ne passe pas par les schemas.
+   */
   async findByEmail(email: string): Promise<UserRow | undefined> {
-    return this.findOne({ email } as Partial<UserRow>);
+    return (await this.db(this.table)
+      .whereRaw('lower(email) = lower(?)', [email])
+      .first()) as UserRow | undefined;
   }
 
   /**

@@ -76,6 +76,23 @@ describe('Authentification', () => {
       expect(Number(comptes!.n)).toBe(1);
     });
 
+    it("enregistre l'adresse en minuscules, quelle que soit la saisie", async () => {
+      const res = await sinscrire({ email: ' Patronne@Alpha.FR ' });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().user.email).toBe('patronne@alpha.fr');
+      expect(await app.db('user').where({ email: 'patronne@alpha.fr' }).first()).toBeDefined();
+    });
+
+    it('refuse une adresse deja utilisee, a la casse pres', async () => {
+      // Le cas reel : un compte cree seul en minuscules, puis une seconde
+      // inscription avec la majuscule que le telephone avait ajoutee.
+      expect((await sinscrire()).statusCode).toBe(201);
+      expect((await sinscrire({ email: 'Patronne@alpha.fr' })).statusCode).toBe(409);
+      const comptes = await app.db('user').whereRaw('lower(email) = ?', [inscription.email]).count('* as n').first();
+      expect(Number(comptes!.n)).toBe(1);
+    });
+
     it("designe l'inscrit comme createur de son organisation", async () => {
       await sinscrire();
       const user = await app.db('user').where({ email: inscription.email }).first();
@@ -121,6 +138,17 @@ describe('Authentification', () => {
   describe('connexion', () => {
     beforeEach(async () => {
       await sinscrire();
+    });
+
+    it("accepte l'adresse quelle que soit sa casse", async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: 'PATRONNE@Alpha.fr', password: TEST_PASSWORD },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().user.email).toBe(inscription.email);
     });
 
     it('refuse un mot de passe errone', async () => {

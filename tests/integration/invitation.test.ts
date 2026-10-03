@@ -71,6 +71,24 @@ describe("Parcours d'invitation", () => {
     expect(new Date(row.expires_at).getTime()).toBeGreaterThan(Date.now());
   });
 
+  it("enregistre l'adresse invitee en minuscules, et le compte cree avec", async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/invitations',
+      headers: auth(admin.token),
+      payload: { email: 'Arthur.Durand@Alpha.fr', role: 'employee' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().email).toBe('arthur.durand@alpha.fr');
+    const row = await app.db('invitation').where({ email: 'arthur.durand@alpha.fr' }).first();
+    expect(row).toBeDefined();
+
+    const inscription = await inscrire(row.token as string);
+
+    expect(inscription.statusCode).toBe(201);
+    expect(inscription.json().user.email).toBe('arthur.durand@alpha.fr');
+  });
+
   it("retient la langue choisie par celui qui invite", async () => {
     await inviter({ email: 'hans@alpha.fr', locale: 'de' });
 

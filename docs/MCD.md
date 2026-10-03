@@ -17,7 +17,7 @@ ORM : Knex 3
 | Colonne | Type | Contraintes |
 |---|---|---|
 | `id` | uuid | PK, default uuid |
-| `email` | varchar(255) | NOT NULL, UNIQUE |
+| `email` | varchar(255) | NOT NULL, UNIQUE, index unique sur `lower(email)` — toujours en minuscules |
 | `password_hash` | varchar(255) | NOT NULL |
 | `first_name` | varchar(100) | NOT NULL |
 | `last_name` | varchar(100) | NOT NULL |
@@ -40,7 +40,14 @@ moment de l'envoi — c'est l'utilisateur qui declenche la demande, et il n'est
 pas connecte.
 
 **Migrations :** `20260412120000_create_user.js`, `20260730210517_add_deleted_at_to_user.js`,
-`20260903184349_add_locale_to_user.js`, `20260919210658_normalize_phone_e164.js`
+`20260903184349_add_locale_to_user.js`, `20260919210658_normalize_phone_e164.js`,
+`20261003140000_normalize_email_lowercase.js`
+
+**E-mail** — toujours en minuscules, normalise par les schemas Zod
+(`src/lib/email.ts`). L'index `user_email_lower_unique` rend l'unicite
+insensible a la casse ; la contrainte UNIQUE d'origine subsiste, redondante
+mais inoffensive. La migration de reprise refuse de passer tant que deux
+comptes ne different que par la casse : il faut les fusionner a la main.
 
 **Telephone** — un seul format en base, E.164, pour `user.phone` comme pour
 `organization.phone`. La colonne n'a pas de contrainte CHECK : la migration de
@@ -125,7 +132,7 @@ que l'utilisateur a cree un chantier. `DELETE /users/me` anonymise la ligne et r
 | Colonne | Type | Contraintes |
 |---|---|---|
 | `id` | uuid | PK, default uuid |
-| `email` | varchar(255) | NOT NULL |
+| `email` | varchar(255) | NOT NULL — toujours en minuscules |
 | `invited_by` | uuid | NOT NULL, FK -> `user.id` |
 | `role` | enum `user_role` | NOT NULL, default `employee` |
 | `token` | varchar(255) | NOT NULL, UNIQUE |
@@ -138,7 +145,8 @@ que l'utilisateur a cree un chantier. `DELETE /users/me` anonymise la ligne et r
 vol : un renvoi doit repartir dans la meme langue.
 
 **Migrations :** `20260412120004_create_invitation.js`,
-`20260903183737_add_locale_to_invitation.js`
+`20260903183737_add_locale_to_invitation.js`,
+`20261003140000_normalize_email_lowercase.js`
 
 ---
 

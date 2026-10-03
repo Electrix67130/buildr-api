@@ -57,6 +57,19 @@ Le client formate pour l'affichage ; il n'a jamais a nettoyer la saisie.
 | POST | `/auth/reset-password` | Non | Reinitialiser le mot de passe via token |
 | GET | `/auth/me` | JWT | Profil utilisateur connecte |
 
+### Adresses e-mail
+
+Toute adresse qui entre dans l'API — inscription, connexion, mot de passe
+oublie, invitation, modification de profil — est **passee en minuscules** et
+debarrassee de ses espaces avant toute comparaison ou ecriture
+(`src/lib/email.ts`). `Arthur@gmail.com` et `arthur@gmail.com` designent le
+meme compte, et la base le garantit par un index unique sur `lower(email)`.
+
+Jusque-la l'API distinguait les deux : un salarie inscrit seul en minuscules,
+puis invite avec la majuscule que son telephone avait ajoutee, obtenait deux
+comptes dans deux organisations. La reponse de l'API renvoie toujours
+l'adresse normalisee ; les clients n'ont rien a faire de particulier.
+
 ### POST /auth/register
 
 **Body :**

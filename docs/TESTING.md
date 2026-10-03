@@ -1,6 +1,6 @@
 # Tests
 
-452 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+461 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 
@@ -34,6 +34,7 @@ l'etage integration.
 | `crypto.test.ts` | Chiffrement des jetons OAuth : aller-retour, detection d'alteration, jetons aleatoires |
 | `mail-transport.test.ts` | Acheminement des e-mails : choix du transport, version texte, expediteur |
 | `session-cache.test.ts` | Cache des sessions : peremption, separation des plateformes, invalidation |
+| `email.test.ts` | Normalisation des adresses e-mail : minuscules, espaces, validation |
 
 **Integration** (`tests/integration/`) — application complete + base.
 

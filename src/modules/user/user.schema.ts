@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { PHONE_INPUT_PATTERN, PHONE_INPUT_MAX } from '@/lib/phone';
+import { emailSchema } from '@/lib/email';
 
 export const createUserSchema = z.object({
-  email: z.string().email().max(255),
+  email: emailSchema,
   password_hash: z.string().min(1),
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
@@ -13,7 +14,7 @@ export const createUserSchema = z.object({
 });
 
 export const updateUserSchema = z.object({
-  email: z.string().email().max(255).optional(),
+  email: emailSchema.optional(),
   first_name: z.string().min(1).max(100).optional(),
   last_name: z.string().min(1).max(100).optional(),
   phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX).optional(),

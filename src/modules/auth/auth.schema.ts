@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import { PHONE_INPUT_PATTERN, PHONE_INPUT_MAX } from '@/lib/phone';
+import { emailSchema } from '@/lib/email';
 
 /** Plateforme d'origine de la connexion : chacune garde sa propre session. */
 export const platformEnum = z.enum(['mobile', 'web']);
 export type Platform = z.infer<typeof platformEnum>;
 
 export const registerSchema = z.object({
-  email: z.string().email().max(255),
+  email: emailSchema,
   password: z.string().min(8).max(128),
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
@@ -49,7 +50,7 @@ export const updatePasswordSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   password: z.string().min(1),
   platform: platformEnum.optional().default('web'),
 });
@@ -59,7 +60,7 @@ export const refreshSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
 });
 
 export const resetPasswordSchema = z.object({

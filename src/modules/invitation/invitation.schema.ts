@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { emailSchema } from '@/lib/email';
 
 export const createInvitationSchema = z.object({
-  email: z.string().email().max(255),
+  email: emailSchema,
   role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional().default('employee'),
   /**
    * Langue du mail d'invitation. C'est celui qui invite qui la choisit : lui
