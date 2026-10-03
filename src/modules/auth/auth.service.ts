@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
 import { randomUUID, createHmac } from 'crypto';
 import UserService from '@/modules/user/user.service';
+import InvitationService from '@/modules/invitation/invitation.service';
 import { RegisterInput } from './auth.schema';
 import { UserRow, toPublicUser } from '@/modules/user/user.schema';
 import env from '@/config/env';
@@ -14,10 +15,12 @@ const SALT_ROUNDS = 12;
 class AuthService {
   private fastify: FastifyInstance;
   private userService: UserService;
+  private invitationService: InvitationService;
 
   constructor(fastify: FastifyInstance) {
     this.fastify = fastify;
     this.userService = new UserService(fastify.db);
+    this.invitationService = new InvitationService(fastify.db);
   }
 
   async register(data: RegisterInput) {
@@ -113,24 +116,11 @@ class AuthService {
       .whereNull('created_by')
       .update({ created_by: user.id });
 
-    // Mark invitation as accepted if applicable
+    // Invitation acceptee, et equipe du manager inviteur : meme chemin qu'a la
+    // connexion d'un compte existant (voir InvitationService.redeem).
     if (invitationId) {
-      await this.fastify.db('invitation').where({ id: invitationId }).update({ status: 'accepted' });
-
-      // If the inviter is a manager, auto-add the new user to their team
-      const invitation = await this.fastify.db('invitation').where({ id: invitationId }).first();
-      if (invitation) {
-        // role de l'inviter dans son org active (qui est forcement la meme org que l'invitation).
-        const inviterMembership = await this.fastify.db('organization_member')
-          .where({ user_id: invitation.invited_by, organization_id: invitation.organization_id })
-          .first();
-        if (inviterMembership?.role === 'manager') {
-          await this.fastify.db('team_member')
-            .insert({ manager_id: invitation.invited_by, user_id: user.id })
-            .onConflict(['manager_id', 'user_id'])
-            .ignore();
-        }
-      }
+      const invitation = await this.invitationService.findById(invitationId);
+      if (invitation) await this.invitationService.redeem(invitation, user.id);
     }
 
     const tokens = await this.generateTokens(user, data.platform ?? 'web');
@@ -224,8 +214,14 @@ class AuthService {
       throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
     }
 
-    const tokens = await this.generateTokens(user, platform);
-    const safeUser = toPublicUser(user);
+    // Un compte qui existait deja quand on l'a invite ne peut pas passer par le
+    // lien d'invitation (l'adresse est prise). On honore ses invitations ici,
+    // et on relit le compte si son organisation active a bascule.
+    const joined = await this.invitationService.claimPendingForUser(user);
+    const current = joined.length > 0 ? ((await this.userService.findById(user.id)) ?? user) : user;
+
+    const tokens = await this.generateTokens(current, platform);
+    const safeUser = toPublicUser(current);
 
     return { user: safeUser, ...tokens };
   }

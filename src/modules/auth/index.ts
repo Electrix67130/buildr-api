@@ -4,6 +4,7 @@ import { z } from 'zod';
 import AuthService from './auth.service';
 import { registerSchema, loginSchema, refreshSchema, updatePasswordSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema';
 import OrganizationMemberService from '../organization-member/organization-member.service';
+import InvitationService from '../invitation/invitation.service';
 import { toPublicUser } from '../user/user.schema';
 
 const switchOrganizationSchema = z.object({
@@ -58,8 +59,18 @@ export default fp(
     });
 
     fastify.get('/auth/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-      const user = await fastify.db('user').where({ id: request.user.sub }).first();
+      let user = await fastify.db('user').where({ id: request.user.sub }).first();
       if (!user) return reply.notFound('User not found');
+
+      // Les apps appellent /auth/me a chaque demarrage : un appareil reste
+      // connecte ne repasse jamais par /auth/login, c'est donc ici que ses
+      // invitations en attente sont honorees. Si son organisation active a
+      // bascule, on relit le compte pour renvoyer le nouveau contexte.
+      const invitationService = new InvitationService(fastify.db);
+      const joined = await invitationService.claimPendingForUser(user);
+      if (joined.length > 0) {
+        user = (await fastify.db('user').where({ id: request.user.sub }).first()) ?? user;
+      }
       const { role: _legacyRole, organization_id: _legacyOrg, ...rest } = user;
       const safeUser = toPublicUser(rest);
 

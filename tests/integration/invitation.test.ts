@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createTestApp, auth } from '../helpers/app';
 import { truncateAll } from '../helpers/db';
-import { createOrgWithAdmin, type TestUser } from '../helpers/factories';
+import { createOrgWithAdmin, createUser, TEST_PASSWORD, type TestUser } from '../helpers/factories';
 
 /**
  * Parcours d'invitation, de l'envoi a la creation du compte.
@@ -214,5 +214,151 @@ describe("Parcours d'invitation", () => {
     await app.inject({ method: 'DELETE', url: `/invitations/${row.id}`, headers: auth(admin.token) });
 
     expect((await inscrire(jeton)).statusCode).toBe(400);
+  });
+
+  /**
+   * Compte deja existant au moment de l'invitation.
+   *
+   * Cas reel : une salariee s'inscrit elle-meme en tapant le nom de son
+   * entreprise, son patron l'invite une minute plus tard. Le lien repond
+   * « adresse deja utilisee », l'invitation reste en attente, et elle est
+   * invisible dans l'equipe. La connexion doit rattraper ce cas.
+   */
+  describe('compte deja existant', () => {
+    const emmie = {
+      email: 'emmie@alpha.fr',
+      password: TEST_PASSWORD,
+      first_name: 'Emmie',
+      last_name: 'Martin',
+      phone: '0611223344',
+      company_name: 'Alpha TP',
+    };
+
+    const seConnecter = (email = emmie.email) =>
+      app.inject({ method: 'POST', url: '/auth/login', payload: { email, password: TEST_PASSWORD, platform: 'web' } });
+
+    /** S'inscrit seule (coquille a son nom), puis est invitee. */
+    async function inscriteAvantInvitation(role = 'employee') {
+      const res = await app.inject({ method: 'POST', url: '/auth/register', payload: emmie });
+      expect(res.statusCode).toBe(201);
+      const coquilleId = res.json().user.active_organization_id as string;
+      await inviter({ email: emmie.email, role });
+      return coquilleId;
+    }
+
+    it("le lien d'invitation refuse une adresse qui a deja un compte", async () => {
+      await inscriteAvantInvitation();
+      const jeton = (await app.db('invitation').where({ email: emmie.email }).first()).token as string;
+
+      expect((await inscrire(jeton)).statusCode).toBe(409);
+    });
+
+    it("rattache le compte a l'organisation invitante a la connexion", async () => {
+      await inscriteAvantInvitation('manager');
+
+      const res = await seConnecter();
+
+      expect(res.statusCode).toBe(200);
+      const membership = await app.db('organization_member')
+        .where({ user_id: res.json().user.id, organization_id: organizationId })
+        .first();
+      expect(membership?.role).toBe('manager');
+      expect((await app.db('invitation').where({ email: emmie.email }).first()).status).toBe('accepted');
+    });
+
+    it("bascule vers l'organisation invitante quand la sienne est une coquille vide", async () => {
+      const coquilleId = await inscriteAvantInvitation();
+
+      const res = await seConnecter();
+
+      expect(res.json().user.active_organization_id).toBe(organizationId);
+      // L'ancienne appartenance subsiste : rien n'est supprime a son insu.
+      const orgs = (await app.db('organization_member').where({ user_id: res.json().user.id })).map(
+        (m) => m.organization_id,
+      );
+      expect(orgs.sort()).toEqual([coquilleId, organizationId].sort());
+    });
+
+    it("garde son organisation active quand elle y a deja du travail", async () => {
+      const coquilleId = await inscriteAvantInvitation();
+      const userId = (await app.db('user').where({ email: emmie.email }).first()).id as string;
+      await app.db('chantier').insert({ name: 'Mon chantier', organization_id: coquilleId, created_by: userId });
+
+      const res = await seConnecter();
+
+      expect(res.json().user.active_organization_id).toBe(coquilleId);
+      expect(
+        await app.db('organization_member').where({ user_id: userId, organization_id: organizationId }).first(),
+      ).toBeDefined();
+    });
+
+    it("ignore la casse de l'adresse", async () => {
+      await app.inject({ method: 'POST', url: '/auth/register', payload: { ...emmie, email: 'Emmie.Martin@alpha.fr' } });
+      await inviter({ email: 'emmie.martin@alpha.fr' });
+
+      const res = await seConnecter('Emmie.Martin@alpha.fr');
+
+      expect(res.statusCode).toBe(200);
+      expect(
+        await app.db('organization_member').where({ user_id: res.json().user.id, organization_id: organizationId }).first(),
+      ).toBeDefined();
+    });
+
+    it("n'honore pas une invitation expiree", async () => {
+      await inscriteAvantInvitation();
+      await app.db('invitation').where({ email: emmie.email }).update({ expires_at: new Date(Date.now() - 1000) });
+
+      const res = await seConnecter();
+
+      expect(res.statusCode).toBe(200);
+      expect(
+        await app.db('organization_member').where({ user_id: res.json().user.id, organization_id: organizationId }).first(),
+      ).toBeUndefined();
+      expect((await app.db('invitation').where({ email: emmie.email }).first()).status).toBe('pending');
+    });
+
+    it("entre dans l'equipe du manager qui l'a invitee", async () => {
+      const manager = await createUser(app, { organizationId, role: 'manager' });
+      await app.inject({ method: 'POST', url: '/auth/register', payload: emmie });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/invitations',
+        headers: auth(manager.token),
+        payload: { email: emmie.email, role: 'employee' },
+      });
+      expect(res.statusCode).toBe(201);
+
+      const connexion = await seConnecter();
+
+      expect(
+        await app.db('team_member').where({ manager_id: manager.id, user_id: connexion.json().user.id }).first(),
+      ).toBeDefined();
+    });
+
+    it("honore aussi l'invitation depuis /auth/me, pour un appareil reste connecte", async () => {
+      // Connectee AVANT l'invitation : son jeton ne sait rien de celle-ci.
+      await app.inject({ method: 'POST', url: '/auth/register', payload: emmie });
+      const token = (await seConnecter()).json().access_token as string;
+      await inviter({ email: emmie.email });
+
+      const res = await app.inject({ method: 'GET', url: '/auth/me', headers: auth(token) });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().active_organization_id).toBe(organizationId);
+      expect(res.json().role).toBe('employee');
+      expect(res.json().memberships.map((m: { organization_id: string }) => m.organization_id)).toContain(organizationId);
+      expect((await app.db('invitation').where({ email: emmie.email }).first()).status).toBe('accepted');
+    });
+
+    it('ne refait rien a la connexion suivante', async () => {
+      await inscriteAvantInvitation();
+      await seConnecter();
+
+      const res = await seConnecter();
+
+      expect(res.statusCode).toBe(200);
+      const memberships = await app.db('organization_member').where({ user_id: res.json().user.id });
+      expect(memberships).toHaveLength(2);
+    });
   });
 });

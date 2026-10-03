@@ -98,6 +98,18 @@ plateforme invalide la premiere (token rejete avec un 401 « Session expired
 le token. Les tokens emis avant l'introduction du claim `platform` restent
 acceptes sans controle de session, jusqu'a la prochaine connexion.
 
+**Invitations en attente** — a chaque connexion reussie, ainsi qu'a chaque
+`GET /auth/me`, l'API honore les
+invitations `pending` et non expirees adressees a l'e-mail du compte (casse
+ignoree) : membership creee avec le role de l'invitation, invitation passee a
+`accepted`, entree dans l'equipe de l'inviteur s'il est manager. Si
+l'organisation active du compte est une coquille (il en est le seul membre et
+elle n'a aucun chantier), `active_organization_id` bascule vers l'organisation
+invitante et le `user` renvoye reflete deja ce changement. Sinon le contexte
+ne bouge pas : la nouvelle organisation apparait dans `memberships` de
+`/auth/me` et se choisit via `/auth/switch-organization`. Voir « Invitations »
+pour le pourquoi.
+
 ### POST /auth/refresh
 
 **Body :** `{ "refresh_token": "string" }`
@@ -121,6 +133,9 @@ acceptes sans controle de session, jusqu'a la prochaine connexion.
 **Reponse 204** (no content)
 
 ### GET /auth/me
+
+Honore au passage les invitations en attente adressees a l'e-mail du compte
+(voir « Invitations » — compte deja existant).
 
 **Reponse 200 :** objet user (sans password_hash)
 
@@ -486,6 +501,29 @@ Le lien profond reste propose en dessous, pour qui a deja l'application.
 `APP_URL` doit donc pointer sur le dashboard (`https://app.getbuildr.fr`) et non
 sur sa valeur par defaut `http://localhost:3001`, sans quoi le mail enverrait
 l'invite sur un port de sa propre machine.
+
+### Compte deja existant : rattachement a la connexion
+
+Le lien d'invitation cree un compte. Si l'adresse en a deja un (le
+collaborateur s'est inscrit seul avant d'etre invite, ou avait un compte chez
+un autre client), `POST /auth/register` repond `409` et l'invitation reste
+`pending` : rien ne rattachait ce compte, l'invite restait invisible dans
+l'equipe et impossible a ajouter aux chantiers. C'est arrive en production :
+une salariee s'etait inscrite en tapant le nom de son entreprise comme societe,
+ce qui lui a cree une organisation homonyme a elle seule, et son patron l'a
+invitee une minute plus tard.
+
+Depuis, `POST /auth/login` honore les invitations en attente de l'e-mail qui
+se connecte (`InvitationService.claimPendingForUser`). Le rattachement passe
+par le meme code que l'inscription par le lien (`InvitationService.redeem`),
+pour que les deux parcours ne divergent jamais. Une invitation expiree n'est
+pas honoree : il faut en renvoyer une. Le compte garde son ancienne
+organisation, rien n'est supprime a son insu.
+
+Un appareil qui reste connecte ne repasse pas par `/auth/login` : le meme
+rattachement est donc fait a chaque `GET /auth/me`, que les apps appellent au
+demarrage. Il suffit de rouvrir l'application pour que l'invitation prenne
+effet, et la reponse de `/auth/me` reflete deja le nouveau contexte.
 
 ### DELETE /invitations/:id
 
