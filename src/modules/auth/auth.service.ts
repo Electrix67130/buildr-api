@@ -7,6 +7,7 @@ import { UserRow, toPublicUser } from '@/modules/user/user.schema';
 import env from '@/config/env';
 import { invalidateSessionCache, type Platform } from '@/lib/session-cache';
 import { closeUserConnections } from '@/lib/realtime-hub';
+import { normalizePhone } from '@/lib/phone';
 
 const SALT_ROUNDS = 12;
 
@@ -71,6 +72,11 @@ class AuthService {
         for (const [key, value] of Object.entries(data.organization)) {
           if (value === undefined) continue;
           orgPayload[key] = value;
+        }
+        // L'organisation est inseree en direct, sans passer par son service :
+        // on normalise ici, avec le pays que le formulaire vient de donner.
+        if (data.organization.phone !== undefined) {
+          orgPayload.phone = normalizePhone(data.organization.phone, data.organization.country);
         }
       }
       const [org] = await this.fastify.db('organization')

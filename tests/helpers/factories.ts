@@ -61,7 +61,7 @@ export async function createUser(
       password_hash: await passwordHash(),
       first_name: 'Test',
       last_name: params.role,
-      phone: '0600000000',
+      phone: '+33600000000',
       role: params.role, // colonne vestigiale : la verite est organization_member
       organization_id: params.organizationId,
       active_organization_id: params.organizationId,

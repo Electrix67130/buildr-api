@@ -4,6 +4,7 @@ import ChantierMemberService from './chantier-member.service';
 import { createChantierMemberSchema, updateChantierMemberSchema } from './chantier-member.schema';
 import { hasPermission } from '@/lib/permissions';
 import { getActiveMembership } from '@/lib/active-membership';
+import { isChantierAdminOrCreator } from '@/lib/permissions';
 import { fireAndForget, syncMemberAdded, syncMemberRemoved } from '@/modules/calendar-integration/sync';
 import { sendPushToUser } from '@/lib/push-notifications';
 import { memberAddedPush } from '@/lib/push-i18n';
@@ -23,12 +24,9 @@ const uuidSchema = z.object({ id: z.string().uuid() });
  * - Admin, chantier creator, manager (member of this chantier), or member with can_edit
  */
 async function canAddRemoveMembers(db: import('knex').Knex, userId: string, chantierId: string): Promise<boolean> {
+  if (await isChantierAdminOrCreator(db, userId, chantierId)) return true;
+
   const m = await getActiveMembership(db, userId);
-  if (m?.role === 'admin') return true;
-
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (chantier?.created_by === userId) return true;
-
   const member = await db('chantier_member')
     .where({ chantier_id: chantierId, user_id: userId })
     .select('can_edit')
@@ -44,11 +42,7 @@ async function canAddRemoveMembers(db: import('knex').Knex, userId: string, chan
  * - Admin or chantier creator only (NOT manager)
  */
 async function canEditPermissions(db: import('knex').Knex, userId: string, chantierId: string): Promise<boolean> {
-  const m = await getActiveMembership(db, userId);
-  if (m?.role === 'admin') return true;
-
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  return chantier?.created_by === userId;
+  return isChantierAdminOrCreator(db, userId, chantierId);
 }
 
 export default fp(

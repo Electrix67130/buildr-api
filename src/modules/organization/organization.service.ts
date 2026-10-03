@@ -1,6 +1,7 @@
 import { Knex } from 'knex';
 import BaseService from '@/lib/base-service';
 import { CreateOrganization, OrganizationRow } from './organization.schema';
+import { normalizePhone } from '@/lib/phone';
 
 class OrganizationService extends BaseService<OrganizationRow> {
   constructor(db: Knex) {
@@ -13,6 +14,17 @@ class OrganizationService extends BaseService<OrganizationRow> {
     return this.db(this.table).where({ id: user.active_organization_id }).first() as Promise<
       OrganizationRow | undefined
     >;
+  }
+
+  /**
+   * Le telephone de l'organisation repart en E.164, interprete avec son propre
+   * pays — celui du payload s'il change dans la meme requete, sinon celui
+   * deja en base.
+   */
+  async update(id: string, data: Partial<OrganizationRow>): Promise<OrganizationRow | undefined> {
+    if (!('phone' in data)) return super.update(id, data);
+    const country = data.country ?? (await this.findById(id))?.country;
+    return super.update(id, { ...data, phone: normalizePhone(data.phone, country) });
   }
 
   /** Cree une org + une membership admin pour le createur, set comme org active. Transactionnel. */
@@ -28,6 +40,7 @@ class OrganizationService extends BaseService<OrganizationRow> {
         if (value === undefined) continue;
         insertRow[key] = value;
       }
+      if (data.phone !== undefined) insertRow.phone = normalizePhone(data.phone, data.country);
       const [org] = await trx('organization').insert(insertRow).returning('*');
       await trx('organization_member').insert({
         organization_id: org.id,

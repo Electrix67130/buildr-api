@@ -2,7 +2,7 @@ import fp from 'fastify-plugin';
 import { z } from 'zod';
 import { Knex } from 'knex';
 import ChantierStepService, { ChantierSubstepService } from './chantier-step.service';
-import { getActiveMembership } from '@/lib/active-membership';
+import { isChantierAdminOrCreator } from '@/lib/permissions';
 import { sendPushToChantier } from '@/lib/push-notifications';
 import { substepValidatedPush, stepValidatedPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
@@ -25,11 +25,7 @@ const chantierParamSchema = z.object({ chantier_id: z.string().uuid() });
  * admin OR chantier creator OR (manager + member of chantier) OR (member with can_edit)
  */
 async function canManageSteps(db: Knex, userId: string, chantierId: string): Promise<boolean> {
-  const _m = await getActiveMembership(db, userId);
-  if (_m?.role === 'admin') return true;
-
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (chantier?.created_by === userId) return true;
+  if (await isChantierAdminOrCreator(db, userId, chantierId)) return true;
 
   const member = await db('chantier_member')
     .where({ chantier_id: chantierId, user_id: userId })
@@ -44,11 +40,7 @@ async function canManageSteps(db: Knex, userId: string, chantierId: string): Pro
  * Can toggle substep validation: any chantier member except role='client', plus admin and creator.
  */
 async function canToggleValidation(db: Knex, userId: string, chantierId: string): Promise<boolean> {
-  const _m = await getActiveMembership(db, userId);
-  if (_m?.role === 'admin') return true;
-
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (chantier?.created_by === userId) return true;
+  if (await isChantierAdminOrCreator(db, userId, chantierId)) return true;
 
   const member = await db('chantier_member').where({ chantier_id: chantierId, user_id: userId }).select('role').first();
   if (!member) return false;
@@ -59,11 +51,7 @@ async function canToggleValidation(db: Knex, userId: string, chantierId: string)
  * Can view steps: admin OR creator OR member with can_view_steps=true.
  */
 async function canViewSteps(db: Knex, userId: string, chantierId: string): Promise<boolean> {
-  const _m = await getActiveMembership(db, userId);
-  if (_m?.role === 'admin') return true;
-
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (chantier?.created_by === userId) return true;
+  if (await isChantierAdminOrCreator(db, userId, chantierId)) return true;
 
   const member = await db('chantier_member')
     .where({ chantier_id: chantierId, user_id: userId })

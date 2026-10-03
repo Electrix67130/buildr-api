@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PHONE_INPUT_PATTERN, PHONE_INPUT_MAX } from '@/lib/phone';
 
 // Champs légaux et contact, partagés entre create/update.
 // Tous optionnels : on n'oblige pas l'utilisateur à tout renseigner à la création
@@ -14,7 +15,7 @@ const legalFields = {
   city: z.string().max(100).nullable().optional(),
   country: z.string().length(2).nullable().optional(),
 
-  phone: z.string().max(20).nullable().optional(),
+  phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX).nullable().optional(),
   billing_email: z.string().email().max(255).nullable().optional(),
   website: z.string().url().max(500).nullable().optional(),
 

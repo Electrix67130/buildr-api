@@ -131,7 +131,7 @@ exports.seed = async function seed(knex) {
     postal_code: '88000',
     city: 'Épinal',
     country: 'FR',
-    phone: '03 29 00 00 00',
+    phone: '+33329000000',
     billing_email: 'demo@getbuildr.fr',
     insurance_provider: 'Assurance Démo',
     insurance_number: 'DEMO-2026-0001',
@@ -141,10 +141,10 @@ exports.seed = async function seed(knex) {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
   const people = [
-    { key: 'admin', email: 'demo@getbuildr.fr', first: 'Camille', last: 'Martin', role: 'admin', phone: '06 12 34 56 78', avatar: 'demo-avatar-camille.jpg' },
-    { key: 'manager', email: 'chef@demo.getbuildr.fr', first: 'Thomas', last: 'Lefèvre', role: 'manager', phone: '06 23 45 67 89', avatar: 'demo-avatar-thomas.jpg' },
-    { key: 'ouvrier', email: 'ouvrier@demo.getbuildr.fr', first: 'Karim', last: 'Benali', role: 'employee', phone: '06 34 56 78 90', avatar: 'demo-avatar-karim.jpg' },
-    { key: 'client', email: 'client@demo.getbuildr.fr', first: 'Sophie', last: 'Dubois', role: 'client', phone: '06 45 67 89 01', avatar: 'demo-avatar-sophie.jpg' },
+    { key: 'admin', email: 'demo@getbuildr.fr', first: 'Camille', last: 'Martin', role: 'admin', phone: '+33612345678', avatar: 'demo-avatar-camille.jpg' },
+    { key: 'manager', email: 'chef@demo.getbuildr.fr', first: 'Thomas', last: 'Lefèvre', role: 'manager', phone: '+33623456789', avatar: 'demo-avatar-thomas.jpg' },
+    { key: 'ouvrier', email: 'ouvrier@demo.getbuildr.fr', first: 'Karim', last: 'Benali', role: 'employee', phone: '+33634567890', avatar: 'demo-avatar-karim.jpg' },
+    { key: 'client', email: 'client@demo.getbuildr.fr', first: 'Sophie', last: 'Dubois', role: 'client', phone: '+33645678901', avatar: 'demo-avatar-sophie.jpg' },
   ];
 
   const users = {};

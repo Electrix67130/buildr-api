@@ -190,9 +190,24 @@ describe('Droits par role', () => {
         method: 'PATCH',
         url: `/users/${employee.id}`,
         headers: auth(employee.token),
-        payload: { phone: '0612345678' },
+        payload: { phone: '06 12 34 56 78' },
       });
       expect(res.statusCode).toBe(200);
+      // Un seul format en base, quelle que soit la saisie.
+      expect(res.json().phone).toBe('+33612345678');
+      expect((await app.db('user').where({ id: employee.id }).first()).phone).toBe('+33612345678');
+    });
+
+    it('refuse un telephone invalide sans toucher au profil', async () => {
+      const avant = (await app.db('user').where({ id: employee.id }).first()).phone;
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/users/${employee.id}`,
+        headers: auth(employee.token),
+        payload: { phone: '06 12 34' },
+      });
+      expect(res.statusCode).toBe(400);
+      expect((await app.db('user').where({ id: employee.id }).first()).phone).toBe(avant);
     });
 
     it("un employe ne peut pas modifier le profil d'un collegue", async () => {

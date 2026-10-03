@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PHONE_INPUT_PATTERN, PHONE_INPUT_MAX } from '@/lib/phone';
 
 /** Plateforme d'origine de la connexion : chacune garde sa propre session. */
 export const platformEnum = z.enum(['mobile', 'web']);
@@ -9,7 +10,7 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(128),
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
-  phone: z.string().min(1).max(20),
+  phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX),
   role: z.enum(['admin', 'employee', 'client']).optional().default('employee'),
   company_name: z.string().max(200).optional(),
   invitation_token: z.string().optional(),
@@ -33,7 +34,7 @@ export const registerSchema = z.object({
       postal_code: z.string().max(10).nullable().optional(),
       city: z.string().max(100).nullable().optional(),
       country: z.string().length(2).nullable().optional(),
-      phone: z.string().max(20).nullable().optional(),
+      phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX).nullable().optional(),
       billing_email: z.string().email().max(255).nullable().optional(),
       website: z.string().url().max(500).nullable().optional(),
       insurance_provider: z.string().max(200).nullable().optional(),

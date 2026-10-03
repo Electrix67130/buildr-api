@@ -1,11 +1,12 @@
 import { z } from 'zod';
+import { PHONE_INPUT_PATTERN, PHONE_INPUT_MAX } from '@/lib/phone';
 
 export const createUserSchema = z.object({
   email: z.string().email().max(255),
   password_hash: z.string().min(1),
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
-  phone: z.string().max(20).optional(),
+  phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX).optional(),
   avatar_url: z.string().url().max(500).optional(),
   role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional().default('employee'),
   company_name: z.string().max(200).optional(),
@@ -15,7 +16,7 @@ export const updateUserSchema = z.object({
   email: z.string().email().max(255).optional(),
   first_name: z.string().min(1).max(100).optional(),
   last_name: z.string().min(1).max(100).optional(),
-  phone: z.string().max(20).optional(),
+  phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX).optional(),
   avatar_url: z.string().url().max(500).nullable().optional(),
   role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional(),
   company_name: z.string().max(200).optional(),
@@ -46,7 +47,7 @@ export type UserRow = {
   password_hash: string;
   first_name: string;
   last_name: string;
-  phone?: string;
+  phone?: string | null;
   avatar_url?: string | null;
   role: 'admin' | 'manager' | 'employee' | 'client' | 'gestionnaire_reseau';
   /** Langue des e-mails qu'on lui envoie. Renseignee a l'inscription. */

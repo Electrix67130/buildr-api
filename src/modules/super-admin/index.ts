@@ -2,6 +2,8 @@ import fp from 'fastify-plugin';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { requireSuperAdmin, logAudit } from '@/lib/super-admin';
+import { invalidateSessionCache } from '@/lib/session-cache';
+import { closeUserConnections } from '@/lib/realtime-hub';
 import {
   paginationSchema,
   uuidParamSchema,
@@ -13,6 +15,31 @@ const SALT_ROUNDS = 10;
 export default fp(
   (fastify, _opts, done) => {
     const guard = [fastify.authenticate, requireSuperAdmin(fastify)];
+
+    /**
+     * Coupe reellement les sessions en cours d'un utilisateur.
+     *
+     * Supprimer les jetons de rafraichissement ne suffit pas : cela empeche le
+     * RENOUVELLEMENT, pas l'usage. Le jeton d'acces deja emis restait valable
+     * jusqu'a son expiration, soit un quart d'heure — precisement le temps
+     * pendant lequel on croyait avoir coupe un compte compromis ou un
+     * collaborateur dont on venait de se separer.
+     *
+     * Remettre a zero les identifiants de session fait rejeter le jeton des la
+     * requete suivante : c'est le meme mecanisme que la deconnexion. Le cache
+     * doit etre purge dans la foulee, sinon la coupure n'agit qu'au bout de
+     * trente secondes.
+     */
+    const revokeSessions = async (userId: string): Promise<number> => {
+      const deleted = await fastify.db('refresh_token').where({ user_id: userId }).del();
+      await fastify.db('user').where({ id: userId }).update({
+        current_mobile_session_id: null,
+        current_web_session_id: null,
+      });
+      invalidateSessionCache(userId);
+      closeUserConnections(userId, 'logout');
+      return deleted;
+    };
 
     // ---------- Overview ----------
     fastify.get('/super-admin/overview', { preHandler: guard }, async () => {
@@ -268,7 +295,7 @@ export default fp(
       const { id } = uuidParamSchema.parse(request.params);
       const updated = await fastify.db('user').where({ id }).update({ is_active: false });
       if (!updated) return reply.notFound('User not found');
-      await fastify.db('refresh_token').where({ user_id: id }).del(); // kick all sessions
+      await revokeSessions(id);
       await logAudit(fastify.db, {
         super_admin_id: request.user.sub,
         action: 'user.disable',
@@ -295,7 +322,7 @@ export default fp(
 
     fastify.post('/super-admin/users/:id/kick-sessions', { preHandler: guard }, async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
-      const deleted = await fastify.db('refresh_token').where({ user_id: id }).del();
+      const deleted = await revokeSessions(id);
       await logAudit(fastify.db, {
         super_admin_id: request.user.sub,
         action: 'user.kick_sessions',
@@ -317,7 +344,7 @@ export default fp(
       const tempPassword = `Tmp-${randomUUID().slice(0, 12)}`;
       const hash = await bcrypt.hash(tempPassword, SALT_ROUNDS);
       await fastify.db('user').where({ id }).update({ password_hash: hash });
-      await fastify.db('refresh_token').where({ user_id: id }).del();
+      await revokeSessions(id);
 
       await logAudit(fastify.db, {
         super_admin_id: request.user.sub,

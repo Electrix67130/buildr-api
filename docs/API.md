@@ -19,6 +19,20 @@ Reponse paginee :
 }
 ```
 
+## Numeros de telephone
+
+`user.phone` et `organization.phone` sont stockes et renvoyes en **E.164**
+(`+33612345678`) : pas d'espaces, pas de separateurs, indicatif obligatoire.
+
+En entree, l'API accepte la saisie courante — `06 12 34 56 78`,
+`06.12.34.56.78`, `+33 6 12 34 56 78`, `0033612345678` — et la ramene a ce
+format. Un numero sans indicatif est lu avec le pays de l'organisation
+(`organization.country`), la France par defaut. Un numero invalide est refuse en
+`400 Numéro de téléphone invalide`, que la forme soit fausse (`bonjour`) ou que le
+numero n'existe pas (`06 12 34`).
+
+Le client formate pour l'affichage ; il n'a jamais a nettoyer la saisie.
+
 ---
 
 ## Health
@@ -52,7 +66,7 @@ Reponse paginee :
   "password": "string min 8 (required)",
   "first_name": "string (required)",
   "last_name": "string (required)",
-  "phone": "string (optional)",
+  "phone": "string (required) — voir « Numeros de telephone »",
   "role": "admin | employee | client (default: employee)",
   "company_name": "string (optional)"
 }
@@ -151,6 +165,29 @@ Sont **supprimes** : `refresh_token`, `push_token`, `calendar_integration`,
 
 Sont **conserves** : chantiers, photos, documents et messages crees — ils appartiennent a
 l'organisation et apparaissent desormais sous « Compte supprime ».
+
+### Un seul garde pour les chantiers
+
+`isChantierAdminOrCreator()` et `isChantierParticipant()` (`lib/permissions.ts`)
+sont les **seuls** endroits ou s'ecrit « cette personne a-t-elle autorite sur ce
+chantier ». La regle etait auparavant recopiee dans chaque module qui en avait
+besoin — permissions, etapes, urgences, membres — et chaque copie oubliait la
+meme moitie : verifier que le chantier appartient bien a l'organisation de
+l'administrateur.
+
+Tout nouveau module qui a besoin de cette regle doit appeler ces fonctions, et
+non la reecrire.
+
+Le fil de discussion d'une urgence (`/emergency-comments`) exige d'etre
+participant du chantier : il ne verifiait auparavant que l'authentification.
+
+### Sessions coupees pour de bon
+
+`disable`, `kick-sessions` et `force-reset` (console super admin) remettent a
+zero les identifiants de session et purgent le cache, en plus de supprimer les
+jetons de rafraichissement. Supprimer ces derniers empeche le RENOUVELLEMENT,
+pas l'usage : le jeton d'acces deja emis restait valable un quart d'heure —
+precisement le temps pendant lequel on croyait avoir coupe un compte compromis.
 
 ### Cloisonnement des equipes et des chantiers
 

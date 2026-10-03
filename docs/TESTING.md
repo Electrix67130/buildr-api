@@ -1,6 +1,6 @@
 # Tests
 
-353 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+430 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 
@@ -33,6 +33,7 @@ l'etage integration.
 | `image.test.ts` | Traitement des photos : retrait des metadonnees EXIF, orientation, redimensionnement, miniatures |
 | `crypto.test.ts` | Chiffrement des jetons OAuth : aller-retour, detection d'alteration, jetons aleatoires |
 | `mail-transport.test.ts` | Acheminement des e-mails : choix du transport, version texte, expediteur |
+| `session-cache.test.ts` | Cache des sessions : peremption, separation des plateformes, invalidation |
 
 **Integration** (`tests/integration/`) — application complete + base.
 
@@ -48,6 +49,9 @@ l'etage integration.
 | `push.test.ts` | Envoi des notifications : une langue par destinataire, exclusion de l'acteur, refus des notifications |
 | `chantier-permissions.test.ts` | Droits fins au sein d'un chantier : un drapeau ouvre une ressource et une seule |
 | `team.test.ts` | Equipes : composition, consultation, cloisonnement entre organisations |
+| `super-admin.test.ts` | Console Buildr : garde sur chaque route, usurpation d'identite, coupure de compte, journal d'audit |
+| `chantier-step.test.ts` | Etapes et sous-etapes : composition, validation, ordre, cloisonnement |
+| `emergency.test.ts` | Urgences, fil de discussion, et gestion des membres d'un chantier |
 
 Ces axes ont ete choisis parce qu'ils partagent une propriete : leurs defauts ne
 se voient pas a l'usage normal. Il faut connaitre l'identifiant d'une ressource

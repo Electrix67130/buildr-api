@@ -4,7 +4,7 @@ import { Knex } from 'knex';
 import ChantierEmergencyService from './chantier-emergency.service';
 import { createEmergencySchema } from './chantier-emergency.schema';
 import { signUrlsInList } from '@/lib/sign-url';
-import { getActiveMembership } from '@/lib/active-membership';
+import { isChantierAdminOrCreator, isChantierParticipant } from '@/lib/permissions';
 import { emitToChantier } from '@/lib/realtime-hub';
 import { sendPushToChantier } from '@/lib/push-notifications';
 import { emergencyPush } from '@/lib/push-i18n';
@@ -18,20 +18,6 @@ const byChantierSchema = z.object({
 
 const uuidSchema = z.object({ id: z.string().uuid() });
 
-async function isAdminInActiveOrg(db: Knex, userId: string): Promise<boolean> {
-  const m = await getActiveMembership(db, userId);
-  return m?.role === 'admin';
-}
-
-/** Membre du chantier (view), ou admin / createur. */
-async function isChantierMember(db: Knex, userId: string, chantierId: string): Promise<boolean> {
-  if (await isAdminInActiveOrg(db, userId)) return true;
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (chantier?.created_by === userId) return true;
-  const member = await db('chantier_member').where({ chantier_id: chantierId, user_id: userId }).first();
-  return !!member;
-}
-
 /**
  * Peut creer une urgence/reclamation :
  * - admin OR createur du chantier OR membre avec role manager/ouvrier (urgences terrain)
@@ -39,9 +25,7 @@ async function isChantierMember(db: Knex, userId: string, chantierId: string): P
  * Le seul role exclu est gestionnaire_reseau (lecteur externe sans cas d'usage).
  */
 async function canCreateEmergency(db: Knex, userId: string, chantierId: string): Promise<boolean> {
-  if (await isAdminInActiveOrg(db, userId)) return true;
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (chantier?.created_by === userId) return true;
+  if (await isChantierAdminOrCreator(db, userId, chantierId)) return true;
   const member = await db('chantier_member')
     .where({ chantier_id: chantierId, user_id: userId })
     .select('role')
@@ -52,9 +36,7 @@ async function canCreateEmergency(db: Knex, userId: string, chantierId: string):
 /** Peut supprimer une urgence : son auteur OU admin OU createur OU manager du chantier. */
 async function canDeleteEmergency(db: Knex, userId: string, chantierId: string, authorId: string): Promise<boolean> {
   if (authorId === userId) return true;
-  if (await isAdminInActiveOrg(db, userId)) return true;
-  const chantier = await db('chantier').where({ id: chantierId }).select('created_by').first();
-  if (chantier?.created_by === userId) return true;
+  if (await isChantierAdminOrCreator(db, userId, chantierId)) return true;
   const member = await db('chantier_member')
     .where({ chantier_id: chantierId, user_id: userId })
     .select('role')
@@ -69,7 +51,7 @@ export default fp(
     // GET /emergencies?chantier_id=xxx — list emergencies of a chantier
     fastify.get('/emergencies', { preHandler: [fastify.authenticate] }, async (request, reply) => {
       const { chantier_id, ...pagination } = byChantierSchema.parse(request.query);
-      if (!(await isChantierMember(fastify.db, request.user.sub, chantier_id))) {
+      if (!(await isChantierParticipant(fastify.db, request.user.sub, chantier_id))) {
         return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'Accès refusé' });
       }
       const result = await service.findByChantier(chantier_id, pagination);

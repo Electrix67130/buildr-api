@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import BaseService, { PaginationOptions, PaginatedResult } from '@/lib/base-service';
 import { invalidateSessionCache } from '@/lib/session-cache';
 import { UserRow } from './user.schema';
+import { normalizePhone, resolveOrganizationCountry } from '@/lib/phone';
 
 const USER_PUBLIC_COLS = [
   'user.id',
@@ -20,6 +21,38 @@ const USER_PUBLIC_COLS = [
 class UserService extends BaseService<UserRow> {
   constructor(db: Knex) {
     super(db, 'user');
+  }
+
+  /**
+   * Toute ecriture de `phone` repart d'ici en E.164 (voir `lib/phone.ts`).
+   *
+   * Le pays de reference est celui de l'organisation : un `06...` saisi par un
+   * compte francais devient `+336...`, le meme numero tape depuis une
+   * organisation belge serait lu en `+32`. C'est pour cela que la
+   * normalisation vit dans le service et non dans le schema Zod, qui ne
+   * connait pas l'organisation.
+   */
+  async create(data: Partial<UserRow>): Promise<UserRow> {
+    const orgId = (data as { active_organization_id?: string | null }).active_organization_id ?? data.organization_id;
+    return super.create(await this.withNormalizedPhone(data, orgId));
+  }
+
+  async update(id: string, data: Partial<UserRow>): Promise<UserRow | undefined> {
+    if (!('phone' in data)) return super.update(id, data);
+    const user = (await this.db('user')
+      .where({ id })
+      .select('active_organization_id', 'organization_id')
+      .first()) as { active_organization_id?: string | null; organization_id?: string | null } | undefined;
+    return super.update(id, await this.withNormalizedPhone(data, user?.active_organization_id ?? user?.organization_id));
+  }
+
+  private async withNormalizedPhone(
+    data: Partial<UserRow>,
+    organizationId: string | null | undefined,
+  ): Promise<Partial<UserRow>> {
+    if (!('phone' in data)) return data;
+    const country = await resolveOrganizationCountry(this.db, organizationId);
+    return { ...data, phone: normalizePhone(data.phone, country) };
   }
 
   async findByEmail(email: string): Promise<UserRow | undefined> {

@@ -1,4 +1,5 @@
 import { Knex } from 'knex';
+import { getActiveMembership } from './active-membership';
 
 export type Permission =
   | 'view_comments'
@@ -16,6 +17,50 @@ const PERMISSION_COLUMN: Record<Permission, string> = {
   view_team: 'can_view_team',
   edit: 'can_edit',
 };
+
+/**
+ * Contournements legitimes sur un chantier : l'administrateur de l'organisation
+ * DU CHANTIER, et celui qui l'a cree.
+ *
+ * Cette regle etait reecrite dans chaque module qui en avait besoin — et chaque
+ * copie oubliait la meme moitie : verifier que le chantier appartient bien a
+ * l'organisation de l'administrateur. Etre admin QUELQUE PART suffisait alors a
+ * agir sur les chantiers de n'importe quelle entreprise. Elle vit desormais
+ * ici, et nulle part ailleurs.
+ */
+export async function isChantierAdminOrCreator(
+  db: Knex,
+  userId: string,
+  chantierId: string,
+): Promise<boolean> {
+  const chantier = await db('chantier')
+    .where({ id: chantierId })
+    .select('created_by', 'organization_id')
+    .first();
+  if (!chantier) return false;
+  if (chantier.created_by === userId) return true;
+
+  const membership = await getActiveMembership(db, userId);
+  return membership?.role === 'admin' && membership.organization_id === chantier.organization_id;
+}
+
+/**
+ * Participe-t-il a ce chantier ? Membre, createur, ou administrateur de
+ * l'organisation a laquelle le chantier appartient.
+ *
+ * Sert aux ressources qui n'ont pas de drapeau de permission dedie — le fil de
+ * discussion d'une urgence, par exemple : y ecrire suppose d'etre sur le
+ * chantier, pas seulement d'avoir un compte.
+ */
+export async function isChantierParticipant(
+  db: Knex,
+  userId: string,
+  chantierId: string,
+): Promise<boolean> {
+  if (await isChantierAdminOrCreator(db, userId, chantierId)) return true;
+  const member = await db('chantier_member').where({ chantier_id: chantierId, user_id: userId }).first();
+  return !!member;
+}
 
 /**
  * Check if a user has a specific permission on a chantier.

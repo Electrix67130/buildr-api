@@ -21,7 +21,7 @@ ORM : Knex 3
 | `password_hash` | varchar(255) | NOT NULL |
 | `first_name` | varchar(100) | NOT NULL |
 | `last_name` | varchar(100) | NOT NULL |
-| `phone` | varchar(20) | nullable |
+| `phone` | varchar(20) | nullable — E.164 (`+33612345678`), normalise par le service |
 | `avatar_url` | varchar(500) | nullable |
 | `role` | enum `user_role` (`admin`, `manager`, `employee`, `client`) | NOT NULL, default `employee` |
 | `company_name` | varchar(200) | nullable |
@@ -40,7 +40,14 @@ moment de l'envoi — c'est l'utilisateur qui declenche la demande, et il n'est
 pas connecte.
 
 **Migrations :** `20260412120000_create_user.js`, `20260730210517_add_deleted_at_to_user.js`,
-`20260903184349_add_locale_to_user.js`
+`20260903184349_add_locale_to_user.js`, `20260919210658_normalize_phone_e164.js`
+
+**Telephone** — un seul format en base, E.164, pour `user.phone` comme pour
+`organization.phone`. La colonne n'a pas de contrainte CHECK : la migration de
+reprise a laisse tels quels les numeros qu'elle n'a pas su interpreter (listes
+dans sa sortie) et une contrainte ne pourrait etre posee tant qu'il en reste. La
+garantie vient des services (`src/lib/phone.ts`), par lesquels passe toute
+ecriture.
 
 **Note sur la suppression** — la ligne n'est jamais supprimee physiquement : `chantier.created_by`,
 `invitation.invited_by` et `organization.created_by` sont en RESTRICT, donc un DELETE echoue des

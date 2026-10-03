@@ -87,6 +87,35 @@ describe('Authentification', () => {
       await sinscrire({ company_name: undefined });
       expect(await app.db('organization').where({ name: 'Marie Dupont' }).first()).toBeTruthy();
     });
+
+    it('enregistre les telephones en E.164, quelle que soit la saisie', async () => {
+      // Avant, la colonne recevait la saisie telle quelle : `06 11 22 33 44`,
+      // `0611223344` et `06.11.22.33.44` cohabitaient pour un meme numero.
+      const res = await sinscrire({
+        phone: '06 11 22 33 44',
+        organization: { phone: '03.29.00.00.00', country: 'FR' },
+      });
+      expect(res.statusCode).toBe(201);
+
+      const user = await app.db('user').where({ email: inscription.email }).first();
+      expect(user.phone).toBe('+33611223344');
+      const org = await app.db('organization').where({ id: user.active_organization_id }).first();
+      expect(org.phone).toBe('+33329000000');
+    });
+
+    it("lit un numero sans indicatif avec le pays de l'organisation", async () => {
+      const res = await sinscrire({ phone: '0151 23456789', organization: { country: 'DE' } });
+      expect(res.statusCode).toBe(201);
+      const user = await app.db('user').where({ email: inscription.email }).first();
+      expect(user.phone).toBe('+4915123456789');
+    });
+
+    it("refuse un telephone qui n'en est pas un", async () => {
+      expect((await sinscrire({ phone: 'bonjour' })).statusCode).toBe(400);
+      // Bonne forme mais pas un numero : c'est le service, pas Zod, qui tranche.
+      expect((await sinscrire({ phone: '01 23 45' })).statusCode).toBe(400);
+      expect(await app.db('user').where({ email: inscription.email }).first()).toBeUndefined();
+    });
   });
 
   describe('connexion', () => {
