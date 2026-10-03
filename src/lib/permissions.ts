@@ -44,6 +44,17 @@ export async function isChantierAdminOrCreator(
   return membership?.role === 'admin' && membership.organization_id === chantier.organization_id;
 }
 
+/** `userId` est-il administrateur de l'organisation a laquelle appartient le chantier ? */
+export async function isOrgAdminOfChantier(db: Knex, userId: string, chantierId: string): Promise<boolean> {
+  const row = await db('chantier')
+    .join('organization_member', 'organization_member.organization_id', 'chantier.organization_id')
+    .where('chantier.id', chantierId)
+    .where('organization_member.user_id', userId)
+    .select('organization_member.role')
+    .first();
+  return row?.role === 'admin';
+}
+
 /**
  * Participe-t-il a ce chantier ? Membre, createur, ou administrateur de
  * l'organisation a laquelle le chantier appartient.

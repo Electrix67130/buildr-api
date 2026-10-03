@@ -470,6 +470,16 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 | PATCH | `/chantier-members/:id` | JWT | Modifier role/permissions |
 | DELETE | `/chantier-members/:id` | JWT | Retirer un membre |
 
+### Les permissions d'un administrateur ne se modifient pas
+
+Un administrateur de l'organisation a toujours tout sur ses chantiers : ses
+drapeaux `can_*` ne sont jamais lus (`lib/permissions.ts`). `PATCH
+/chantier-members/:id` sur un tel membre repond **409** ; les clients affichent
+« acces complet » a la place des interrupteurs. `GET
+/chantier-members/by-chantier` expose `user_role`, le role dans l'organisation
+**du chantier** (lu sur `organization_member`, plus sur la colonne vestigiale
+`user.role`), pour que les clients sachent qui est administrateur.
+
 ### POST /chantier-members
 
 **Body :**
@@ -813,6 +823,21 @@ n'invalide aucune ligne existante.
 | GET | `/photos/:id` | JWT | Detail |
 | POST | `/photos` | JWT | Ajouter une photo |
 | DELETE | `/photos/:id` | JWT | Supprimer |
+
+### Photos rattachees a une etape
+
+`POST /photos` accepte `step_id` ou `substep_id` (uuid, optionnels) : la photo
+atteste la validation de cette etape. Une photo de sous-etape porte aussi
+`step_id`, pose par l'API. L'etape doit appartenir au `chantier_id` donne,
+sinon **400**. `GET /photos?chantier_id=…&step_id=…` ne renvoie que les photos
+de cette etape, sous-etapes comprises. Supprimer l'etape detache la photo
+(`SET NULL`) sans la supprimer : elle reste dans la galerie.
+
+`GET /chantiers/:chantier_id/steps` renvoie sur chaque etape et chaque
+sous-etape un tableau `photos: [{ id, url, thumbnail_url, step_id,
+substep_id, created_at }]`, pour afficher les vignettes sans croiser la
+galerie avec l'arbre. `photos` d'une etape ne contient que les photos de
+l'etape elle-meme, pas celles de ses sous-etapes.
 
 ### POST /photos
 

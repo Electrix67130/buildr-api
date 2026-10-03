@@ -79,8 +79,20 @@ class ChantierMemberService extends BaseService<ChantierMemberRow> {
     const { page = 1, limit = 50, orderBy = 'created_at', order = 'asc' } = options;
     const offset = (page - 1) * limit;
 
+    // `user_role` est le role dans l'organisation DU CHANTIER, lu sur
+    // organization_member. La colonne `user.role` est un vestige : elle
+    // affichait l'ancien role, et un administrateur promu depuis restait
+    // modifiable comme un simple ouvrier dans l'equipe du chantier.
     const baseQuery = this.db(this.table)
       .join('user', 'chantier_member.user_id', 'user.id')
+      .join('chantier', 'chantier.id', 'chantier_member.chantier_id')
+      .leftJoin('organization_member', function () {
+        this.on('organization_member.user_id', '=', 'user.id').andOn(
+          'organization_member.organization_id',
+          '=',
+          'chantier.organization_id',
+        );
+      })
       .where('chantier_member.chantier_id', chantierId);
 
     const [items, [{ count }]] = await Promise.all([
@@ -93,7 +105,7 @@ class ChantierMemberService extends BaseService<ChantierMemberRow> {
           'user.email',
           'user.phone',
           'user.company_name',
-          this.db.raw('"user"."role" as user_role'),
+          'organization_member.role as user_role',
         )
         .orderBy(`chantier_member.${orderBy}`, order)
         .limit(limit)

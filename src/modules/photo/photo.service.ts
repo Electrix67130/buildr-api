@@ -10,13 +10,17 @@ class PhotoService extends BaseService<PhotoRow> {
   async findByChantier(
     chantierId: string,
     options: PaginationOptions = {},
+    stepId?: string,
   ): Promise<PaginatedResult<PhotoRow & { first_name: string; last_name: string }>> {
     const { page = 1, limit = 20, orderBy = 'created_at', order = 'desc' } = options;
     const offset = (page - 1) * limit;
 
     const baseQuery = this.db(this.table)
       .join('user', 'photo.uploaded_by', 'user.id')
-      .where('photo.chantier_id', chantierId);
+      .where('photo.chantier_id', chantierId)
+      .modify((qb) => {
+        if (stepId) qb.where('photo.step_id', stepId);
+      });
 
     const [items, [{ count }]] = await Promise.all([
       baseQuery

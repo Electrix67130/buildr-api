@@ -71,6 +71,20 @@ export type ChantierSubstepRow = {
   updated_at: string;
 };
 
+/** Vignette d'une photo rattachee a une etape ou une sous-etape. */
+export type StepPhoto = {
+  id: string;
+  url: string;
+  thumbnail_url: string | null;
+  step_id: string;
+  substep_id: string | null;
+  created_at: string;
+};
+
+export type SubstepWithPhotos = ChantierSubstepRow & { photos: StepPhoto[] };
+
 export type StepWithSubsteps = ChantierStepRow & {
-  substeps: ChantierSubstepRow[];
+  substeps: SubstepWithPhotos[];
+  /** Photos rattachees a l'etape elle-meme (pas a une de ses sous-etapes). */
+  photos: StepPhoto[];
 };

@@ -296,4 +296,102 @@ describe('Etapes de chantier', () => {
       expect(await app.db('chantier_step').where({ id: stepId }).first()).toBeTruthy();
     });
   });
+
+  /**
+   * Photos rattachees aux etapes.
+   *
+   * Valider une etape, c'est constater un etat ; la photo en est la preuve.
+   * Elle doit apparaitre sur l'etape qu'elle atteste, rester une photo du
+   * chantier comme les autres, et ne jamais pouvoir s'accrocher a l'etape
+   * d'un autre chantier.
+   */
+  describe("photos d'etape", () => {
+    const poster = (payload: Record<string, unknown>, token = admin.token) =>
+      app.inject({ method: 'POST', url: '/photos', headers: auth(token), payload: { chantier_id: chantierId, url: 'http://localhost:3000/files/p.jpg', ...payload } });
+    const etapes = () => app.inject({ method: 'GET', url: `/chantiers/${chantierId}/steps`, headers: auth(admin.token) }).then((r) => r.json());
+
+    it("une photo de sous-etape apparait sur elle, et porte aussi son etape", async () => {
+      const sub = (await app.inject({ method: 'POST', url: '/chantier-substeps', headers: auth(admin.token), payload: { step_id: stepId, name: 'Coffrage' } })).json();
+
+      const res = await poster({ substep_id: sub.id });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().step_id).toBe(stepId);
+      const [step] = await etapes();
+      expect(step.photos).toHaveLength(0);
+      expect(step.substeps[0].photos.map((p: { id: string }) => p.id)).toEqual([res.json().id]);
+    });
+
+    it("une photo d'etape apparait sur l'etape", async () => {
+      const res = await poster({ step_id: stepId });
+
+      expect(res.statusCode).toBe(201);
+      const [step] = await etapes();
+      expect(step.photos.map((p: { id: string }) => p.id)).toEqual([res.json().id]);
+    });
+
+    it("refuse l'etape d'un autre chantier", async () => {
+      const autre = (await app.inject({ method: 'POST', url: '/chantiers', headers: auth(admin.token), payload: { name: 'Autre' } })).json();
+      const etapeAilleurs = (await app.inject({ method: 'POST', url: '/chantier-steps', headers: auth(admin.token), payload: { chantier_id: autre.id, name: 'X' } })).json();
+
+      expect((await poster({ step_id: etapeAilleurs.id })).statusCode).toBe(400);
+    });
+
+    it("la galerie sait filtrer par etape", async () => {
+      await poster({ step_id: stepId });
+      await poster({});
+
+      const tout = await app.inject({ method: 'GET', url: `/photos?chantier_id=${chantierId}`, headers: auth(admin.token) });
+      const filtre = await app.inject({ method: 'GET', url: `/photos?chantier_id=${chantierId}&step_id=${stepId}`, headers: auth(admin.token) });
+
+      expect(tout.json().meta.total).toBe(2);
+      expect(filtre.json().meta.total).toBe(1);
+    });
+
+    it("supprimer l'etape detache la photo sans la perdre", async () => {
+      const photo = (await poster({ step_id: stepId })).json();
+
+      await app.inject({ method: 'DELETE', url: `/chantier-steps/${stepId}`, headers: auth(admin.token) });
+
+      const row = await app.db('photo').where({ id: photo.id }).first();
+      expect(row).toBeDefined();
+      expect(row.step_id).toBeNull();
+    });
+  });
+
+  /**
+   * Un administrateur de l'organisation a toujours tout sur ses chantiers :
+   * ses drapeaux de membre ne sont jamais lus. Les laisser modifiables
+   * faisait croire qu'on pouvait le restreindre.
+   */
+  describe("permissions d'un administrateur", () => {
+    it("la liste des membres donne le role dans l'organisation du chantier", async () => {
+      await ajouterMembre(admin, 'manager');
+
+      const res = await app.inject({ method: 'GET', url: `/chantier-members/by-chantier?chantier_id=${chantierId}`, headers: auth(admin.token) });
+
+      const roles = Object.fromEntries(res.json().data.map((m: { user_id: string; user_role: string }) => [m.user_id, m.user_role]));
+      expect(roles[admin.id]).toBe('admin');
+      expect(roles[ouvrier.id]).toBe('employee');
+      expect(roles[chef.id]).toBe('manager');
+    });
+
+    it("refuse de modifier les permissions d'un administrateur", async () => {
+      await ajouterMembre(admin, 'ouvrier');
+      const lien = await app.db('chantier_member').where({ chantier_id: chantierId, user_id: admin.id }).first();
+
+      const res = await app.inject({ method: 'PATCH', url: `/chantier-members/${lien.id}`, headers: auth(admin.token), payload: { can_view_photos: false } });
+
+      expect(res.statusCode).toBe(409);
+      expect((await app.db('chantier_member').where({ id: lien.id }).first()).can_view_photos).toBe(true);
+    });
+
+    it("modifie toujours celles d'un ouvrier", async () => {
+      const lien = await app.db('chantier_member').where({ chantier_id: chantierId, user_id: ouvrier.id }).first();
+
+      const res = await app.inject({ method: 'PATCH', url: `/chantier-members/${lien.id}`, headers: auth(admin.token), payload: { can_view_photos: false } });
+
+      expect(res.statusCode).toBe(200);
+    });
+  });
 });

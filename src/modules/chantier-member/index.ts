@@ -10,6 +10,7 @@ import { sendPushToUser } from '@/lib/push-notifications';
 import { memberAddedPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
 import { emitToChantier, emitToUser } from '@/lib/realtime-hub';
+import { isOrgAdminOfChantier } from '@/lib/permissions';
 
 const byChantierSchema = z.object({
   chantier_id: z.string().uuid(),
@@ -122,6 +123,17 @@ export default fp(
 
       const can = await canEditPermissions(fastify.db, request.user.sub, existing.chantier_id);
       if (!can) return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'Only admins can edit member permissions' });
+
+      // Un administrateur de l'organisation a toujours tout sur ses chantiers :
+      // ses drapeaux ne sont jamais lus (voir lib/permissions.ts). Les laisser
+      // modifiables faisait croire qu'on pouvait le restreindre.
+      if (await isOrgAdminOfChantier(fastify.db, existing.user_id, existing.chantier_id)) {
+        return reply.code(409).send({
+          statusCode: 409,
+          error: 'Conflict',
+          message: "Les permissions d'un administrateur ne se modifient pas : il a toujours accès à tout",
+        });
+      }
 
       // If role is changing, reset permissions to role defaults (unless explicitly overridden)
       const member = data.role && data.role !== existing.role

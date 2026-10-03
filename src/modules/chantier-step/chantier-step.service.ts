@@ -1,6 +1,6 @@
 import { Knex } from 'knex';
 import BaseService from '@/lib/base-service';
-import { ChantierStepRow, ChantierSubstepRow, StepWithSubsteps } from './chantier-step.schema';
+import { ChantierStepRow, ChantierSubstepRow, StepWithSubsteps, StepPhoto } from './chantier-step.schema';
 
 class ChantierStepService extends BaseService<ChantierStepRow> {
   constructor(db: Knex) {
@@ -21,14 +21,29 @@ class ChantierStepService extends BaseService<ChantierStepRow> {
       .orderBy('position', 'asc')
       .orderBy('created_at', 'asc')) as ChantierSubstepRow[];
 
-    const bucketed = new Map<string, ChantierSubstepRow[]>();
+    // Les photos qui attestent une etape ou une sous-etape, servies avec elles
+    // pour que les clients n'aient pas a croiser la galerie avec l'arbre.
+    const photos = (await this.db('photo')
+      .where({ chantier_id: chantierId })
+      .whereNotNull('step_id')
+      .select('id', 'url', 'thumbnail_url', 'step_id', 'substep_id', 'created_at')
+      .orderBy('created_at', 'asc')) as StepPhoto[];
+    const stepPhotos = new Map<string, StepPhoto[]>();
+    const substepPhotos = new Map<string, StepPhoto[]>();
+    for (const p of photos) {
+      const target = p.substep_id ? substepPhotos : stepPhotos;
+      const key = p.substep_id ?? p.step_id;
+      target.set(key, [...(target.get(key) ?? []), p]);
+    }
+
+    const bucketed = new Map<string, (ChantierSubstepRow & { photos: StepPhoto[] })[]>();
     for (const sub of substeps) {
       const arr = bucketed.get(sub.step_id) ?? [];
-      arr.push(sub);
+      arr.push({ ...sub, photos: substepPhotos.get(sub.id) ?? [] });
       bucketed.set(sub.step_id, arr);
     }
 
-    return steps.map((s) => ({ ...s, substeps: bucketed.get(s.id) ?? [] }));
+    return steps.map((s) => ({ ...s, substeps: bucketed.get(s.id) ?? [], photos: stepPhotos.get(s.id) ?? [] }));
   }
 
   async createForChantier(chantierId: string, name: string): Promise<ChantierStepRow> {

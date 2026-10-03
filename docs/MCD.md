@@ -189,8 +189,13 @@ vol : un renvoi doit repartir dans la meme langue.
 | `taken_at` | timestamp | nullable |
 | `file_size` | integer | nullable |
 | `mime_type` | varchar(50) | nullable |
+| `step_id` | uuid | nullable, FK -> `chantier_step.id` SET NULL — etape que la photo atteste |
+| `substep_id` | uuid | nullable, FK -> `chantier_substep.id` SET NULL — sous-etape attestee (son `step_id` est pose aussi) |
 | `created_at` | timestamp | NOT NULL, default now |
 | `updated_at` | timestamp | NOT NULL, default now |
+
+Index : `idx_photo_step`, `idx_photo_substep`. Migration :
+`20261003190000_photo_step_links.js`.
 
 **Index :** `idx_photo_chantier` (chantier_id, created_at)
 
