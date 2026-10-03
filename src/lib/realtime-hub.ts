@@ -23,11 +23,18 @@ export type RealtimeEventType =
   | 'emergency-comment.deleted'
   | 'chantier-member.created'
   | 'chantier-member.updated'
-  | 'chantier-member.deleted';
+  | 'chantier-member.deleted'
+  /**
+   * Le role de l'utilisateur dans son organisation a change. Emis a lui
+   * seul : ses droits en dependent partout, il doit relire son profil et ses
+   * listes sans attendre un retour au premier plan.
+   */
+  | 'membership.updated';
 
 export interface RealtimeEvent {
   type: RealtimeEventType;
-  chantier_id: string;
+  /** Absent pour les evenements qui ne concernent pas un chantier. */
+  chantier_id?: string;
   resource_id?: string;
   actor_id?: string;
 }

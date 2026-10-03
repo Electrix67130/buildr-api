@@ -4,6 +4,7 @@ import UserService from './user.service';
 import { updateUserSchema, deleteAccountSchema, toPublicUser } from './user.schema';
 import { getUserOrganizationId } from '@/lib/org-scope';
 import { getActiveMembership } from '@/lib/active-membership';
+import { emitToUser } from '@/lib/realtime-hub';
 
 const searchSchema = z.object({
   q: z.string().min(1).max(100),
@@ -174,6 +175,9 @@ export default fp(
         if (updated === 0) {
           return reply.notFound("Cet utilisateur n'est pas membre de votre organisation");
         }
+        // Le promu (ou retrograde) l'apprend tout de suite : sans cela il
+        // gardait ses anciens droits a l'ecran jusqu'a une relecture du profil.
+        emitToUser(id, { type: 'membership.updated', actor_id: request.user.sub });
       }
 
       const user = await service.update(id, newRole ? { ...userFields, role: newRole } : userFields);

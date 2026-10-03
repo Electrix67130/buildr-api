@@ -9,7 +9,7 @@ import { fireAndForget, syncMemberAdded, syncMemberRemoved } from '@/modules/cal
 import { sendPushToUser } from '@/lib/push-notifications';
 import { memberAddedPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
-import { emitToChantier } from '@/lib/realtime-hub';
+import { emitToChantier, emitToUser } from '@/lib/realtime-hub';
 
 const byChantierSchema = z.object({
   chantier_id: z.string().uuid(),
@@ -147,12 +147,16 @@ export default fp(
 
       await service.delete(id);
       fireAndForget(() => syncMemberRemoved(fastify.db, existing.chantier_id, existing.user_id, fastify.log), fastify.log);
-      emitToChantier(fastify.db, existing.chantier_id, {
-        type: 'chantier-member.deleted',
+      const event = {
+        type: 'chantier-member.deleted' as const,
         chantier_id: existing.chantier_id,
         resource_id: id,
         actor_id: request.user.sub,
-      }).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
+      };
+      emitToChantier(fastify.db, existing.chantier_id, event).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
+      // Le retire n'est plus membre : la diffusion au chantier ne l'atteint
+      // plus. Il doit pourtant voir le chantier disparaitre de sa liste.
+      emitToUser(existing.user_id, event);
       return reply.code(204).send();
     });
 

@@ -129,6 +129,28 @@ pour le pourquoi.
 
 **Reponse 200 :** `{ "access_token": "jwt", "refresh_token": "uuid" }`
 
+**Durees.** Le jeton d'acces vit `JWT_ACCESS_EXPIRES` (15 min par defaut).
+Le jeton de rafraichissement est renouvele a chaque echange (rotation) et n'a
+pas de duree fixe ; il est refuse apres **90 jours sans usage**, lus sur sa
+date de creation puisque chaque usage en cree un neuf.
+
+**Tolerance de reutilisation (1 min).** La rotation ne supprime plus
+l'ancien jeton : il est marque remplace, avec son successeur. Rejoue dans la
+minute, il **redonne la session en cours** — meme identifiant de session,
+meme jeton de rafraichissement vivant — au lieu d'un 401. C'est le cas d'une
+reponse perdue : reseau coupe sur un chantier, app tuee par le systeme
+pendant l'echange. L'appareil se raccroche sans qu'une seconde session soit
+creee. Passe le delai, ou si la session en cours a ete fermee entre-temps
+(deconnexion, nouvelle connexion, coupure), le jeton remplace repond 401.
+Une connexion neuve balaie tous les jetons de la plateforme, remplaces
+compris.
+
+**Cote clients**, seul un **401** de cette route doit effacer les jetons.
+Toute autre reponse (502 pendant un redeploiement, 500, erreur reseau) est
+passagere : on garde la session et on reessaiera. Jusqu'a la version 1.4.3
+des clients, n'importe quel echec deconnectait — et l'API redemarre a chaque
+deploiement.
+
 ### POST /auth/forgot-password
 
 **Body :** `{ "email": "string" }`
@@ -153,6 +175,25 @@ Honore au passage les invitations en attente adressees a l'e-mail du compte
 **Reponse 200 :** objet user (sans password_hash)
 
 ---
+
+## Temps reel (WebSocket)
+
+`GET /ws?token=<jwt>&api_key=<cle>` ouvre un canal par appareil. Le serveur y
+pousse des evenements `{ type, chantier_id?, resource_id?, actor_id? }` ; le
+client invalide les caches concernes et relit. L'auteur de l'action n'est pas
+notifie de sa propre action.
+
+| Evenement | Destinataires | Le client relit |
+|---|---|---|
+| `comment.*`, `photo.*`, `document.*`, `emergency.*`, `emergency-comment.*` | participants du chantier | la ressource et les compteurs non lus |
+| `chantier-member.created` / `.updated` | participants du chantier | les membres et la liste des chantiers |
+| `chantier-member.deleted` | participants **et le membre retire** | les membres et la liste des chantiers |
+| `membership.updated` | l'utilisateur dont le role a change | tout : son profil (donc ses droits), ses listes |
+
+`membership.updated` est emis par `PATCH /users/:id` quand le role change. Sans
+lui, un collaborateur promu administrateur gardait ses anciens droits a l'ecran
+jusqu'a la prochaine relecture de son profil (retour au premier plan, ou tirer
+pour rafraichir).
 
 ## Users
 
