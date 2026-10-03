@@ -176,7 +176,7 @@ export function buildInvitationEmail(params: {
           <p style="color: #A8A29E; font-size: 13px;">
             ${T.expires(expiresFormatted)}<br>
             ${T.fallback}<br>
-            <a href="${webLink}" style="color: #D97706;">${webLink}</a><br>
+            <a href="${webLink}" style="color: #D97706; word-break: break-all; overflow-wrap: anywhere;">${webLink}</a><br>
             ${T.hasApp} <a href="${appLink}" style="color: #D97706;">${T.openInApp}</a>
           </p>
         </div>
@@ -223,7 +223,7 @@ export function buildPasswordResetEmail(params: {
           <p style="color: #A8A29E; font-size: 13px;">
             ${T.expires}<br>
             ${T.fallback}<br>
-            <a href="${webLink}" style="color: #D97706;">${webLink}</a><br>
+            <a href="${webLink}" style="color: #D97706; word-break: break-all; overflow-wrap: anywhere;">${webLink}</a><br>
             ${T.ignore}<br>
             <a href="${appLink}" style="color: #D97706;">${T.openInApp}</a>
           </p>
