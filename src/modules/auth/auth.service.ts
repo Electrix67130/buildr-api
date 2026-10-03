@@ -12,6 +12,36 @@ import { normalizePhone } from '@/lib/phone';
 
 const SALT_ROUNDS = 12;
 
+/**
+ * Tolerance de reutilisation d'un jeton de rafraichissement deja remplace.
+ *
+ * La rotation supprime l'ancien jeton a chaque echange. Si la reponse se
+ * perd — reseau coupe sur un chantier, app tuee par le systeme au mauvais
+ * moment — le telephone garde un jeton mort et se retrouve deconnecte au
+ * renouvellement suivant. Pendant cette fenetre, rejouer l'ancien jeton
+ * redonne la session en cours au lieu de la refuser. Il n'en cree pas une
+ * seconde : c'est le meme identifiant de session, et le meme jeton vivant.
+ */
+const REFRESH_REUSE_GRACE_MS = 60_000;
+
+/**
+ * Un jeton de rafraichissement inutilise pendant cette duree est refuse. La
+ * rotation en emet un nouveau a chaque usage, donc « inutilise » se lit sur
+ * la date de creation : un appareil actif ne l'atteint jamais, un telephone
+ * perdu ne reste pas connecte a vie.
+ */
+const REFRESH_MAX_IDLE_DAYS = 90;
+
+type RefreshTokenRow = {
+  id: string;
+  user_id: string;
+  token: string;
+  platform: Platform | null;
+  created_at: string;
+  replaced_at: string | null;
+  replaced_by: string | null;
+};
+
 class AuthService {
   private fastify: FastifyInstance;
   private userService: UserService;
@@ -228,22 +258,61 @@ class AuthService {
 
   async refresh(refreshToken: string) {
     const stored = (await this.fastify.db('refresh_token').where({ token: refreshToken }).first()) as
-      | { id: string; user_id: string; platform: Platform | null }
+      | RefreshTokenRow
       | undefined;
     if (!stored) {
       throw Object.assign(new Error('Invalid refresh token'), { statusCode: 401 });
     }
+    // Le refresh renouvelle la session de la plateforme d'origine du jeton.
+    const platform: Platform = stored.platform ?? 'web';
 
-    // Delete old token (rotation)
-    await this.fastify.db('refresh_token').where({ id: stored.id }).del();
+    if (stored.replaced_at) {
+      return this.resumeReplacedSession(stored, platform);
+    }
+
+    if (Date.now() - new Date(stored.created_at).getTime() > REFRESH_MAX_IDLE_DAYS * 24 * 3600 * 1000) {
+      await this.fastify.db('refresh_token').where({ id: stored.id }).del();
+      throw Object.assign(new Error('Refresh token expired'), { statusCode: 401 });
+    }
 
     const user = await this.userService.findById(stored.user_id);
     if (!user || !user.is_active) {
       throw Object.assign(new Error('User not found or inactive'), { statusCode: 401 });
     }
 
-    // Le refresh renouvelle la session de la plateforme d'origine du jeton.
-    return this.generateTokens(user, stored.platform ?? 'web');
+    return this.generateTokens(user, platform, stored.id);
+  }
+
+  /**
+   * Un jeton deja remplace, rejoue pendant la tolerance : on redonne la
+   * session en cours — meme identifiant de session, meme jeton vivant — pour
+   * que l'appareil qui avait perdu la reponse se raccroche sans rien creer.
+   */
+  private async resumeReplacedSession(stored: RefreshTokenRow, platform: Platform) {
+    const expired = Object.assign(new Error('Invalid refresh token'), { statusCode: 401 });
+    if (Date.now() - new Date(stored.replaced_at as string).getTime() > REFRESH_REUSE_GRACE_MS) throw expired;
+
+    const live = stored.replaced_by
+      ? ((await this.fastify.db('refresh_token')
+          .where({ token: stored.replaced_by })
+          .whereNull('replaced_at')
+          .first()) as RefreshTokenRow | undefined)
+      : undefined;
+    if (!live) throw expired;
+
+    const sessionColumn = platform === 'mobile' ? 'current_mobile_session_id' : 'current_web_session_id';
+    const user = (await this.fastify.db('user')
+      .where({ id: stored.user_id })
+      .select('id', 'email', 'is_active', sessionColumn)
+      .first()) as { id: string; email: string; is_active: boolean; [k: string]: unknown } | undefined;
+    const jti = user?.[sessionColumn];
+    if (!user || !user.is_active || typeof jti !== 'string') throw expired;
+
+    const accessToken = this.fastify.jwt.sign(
+      { sub: user.id, email: user.email, jti, platform },
+      { expiresIn: env.JWT_ACCESS_EXPIRES },
+    );
+    return { access_token: accessToken, refresh_token: live.token };
   }
 
   /**
@@ -268,7 +337,12 @@ class AuthService {
     closeUserConnections(userId, 'logout', platform);
   }
 
-  private async generateTokens(user: UserRow, platform: Platform = 'web') {
+  /**
+   * `rotatedFromId` : le jeton de rafraichissement que cet appel remplace. Il
+   * n'est pas supprime mais marque remplace, le temps de la tolerance de
+   * reutilisation ; une connexion neuve (sans `rotatedFromId`) balaie tout.
+   */
+  private async generateTokens(user: UserRow, platform: Platform = 'web', rotatedFromId?: string) {
     const jti = randomUUID();
     const sessionColumn = platform === 'mobile' ? 'current_mobile_session_id' : 'current_web_session_id';
 
@@ -277,7 +351,16 @@ class AuthService {
     // d'auth, mais uniquement sur la meme plateforme — se connecter sur le mobile
     // ne deconnecte plus le dashboard.
     await this.fastify.db('user').where({ id: user.id }).update({ [sessionColumn]: jti });
-    await this.fastify.db('refresh_token').where({ user_id: user.id, platform }).del();
+    const purge = this.fastify.db('refresh_token').where({ user_id: user.id, platform });
+    if (rotatedFromId) purge.whereNot({ id: rotatedFromId });
+    await purge.del();
+    // Les jetons remplaces dont la tolerance est passee ne servent plus a rien.
+    await this.fastify
+      .db('refresh_token')
+      .where({ user_id: user.id })
+      .whereNotNull('replaced_at')
+      .where('replaced_at', '<', new Date(Date.now() - REFRESH_REUSE_GRACE_MS))
+      .del();
     invalidateSessionCache(user.id, platform);
     // Ferme les WS de l'ancien appareil de cette plateforme — le frontend recoit
     // un close 4001 et declenche son logout sans attendre la prochaine requete.
@@ -294,6 +377,12 @@ class AuthService {
       token: refreshToken,
       platform,
     });
+    if (rotatedFromId) {
+      await this.fastify
+        .db('refresh_token')
+        .where({ id: rotatedFromId })
+        .update({ replaced_at: this.fastify.db.fn.now(), replaced_by: refreshToken });
+    }
 
     return { access_token: accessToken, refresh_token: refreshToken };
   }

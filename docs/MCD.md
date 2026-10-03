@@ -71,7 +71,13 @@ que l'utilisateur a cree un chantier. `DELETE /users/me` anonymise la ligne et r
 | `user_id` | uuid | NOT NULL, FK -> `user.id` CASCADE |
 | `token` | text | NOT NULL, UNIQUE |
 | `platform` | enum `session_platform` (`mobile`, `web`) | nullable (jetons anterieurs a la separation des sessions) |
-| `created_at` | timestamp | NOT NULL, default now |
+| `created_at` | timestamp | NOT NULL, default now — un jeton inutilise 90 jours est refuse |
+| `replaced_at` | timestamp | nullable — date a laquelle la rotation l'a remplace |
+| `replaced_by` | text | nullable — le jeton qui lui a succede |
+
+Un jeton remplace reste une minute en base (tolerance de reutilisation, voir
+`docs/API.md` — `/auth/refresh`), puis est purge au passage suivant. Migration :
+`20261003170000_refresh_token_replacement.js`.
 
 **Index :** `idx_refresh_token_user_platform` (user_id, platform)
 

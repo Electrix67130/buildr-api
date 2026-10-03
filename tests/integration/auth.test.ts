@@ -253,12 +253,59 @@ describe('Authentification', () => {
       expect(moi.statusCode).toBe(200);
     });
 
-    it('invalide le jeton de rafraichissement consomme', async () => {
-      // Rotation : rejouer un jeton deja echange doit echouer.
+    it("un jeton deja echange redonne la session en cours pendant la tolerance", async () => {
+      // Reponse perdue : le telephone rejoue l'ancien jeton. Il doit retrouver
+      // LA session en cours, pas en obtenir une seconde.
       const { refresh_token } = (await sinscrire({ email: 'autre@alpha.fr' })).json();
-      await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+      const premier = (await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } })).json();
 
       const rejeu = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+
+      expect(rejeu.statusCode).toBe(200);
+      expect(rejeu.json().refresh_token).toBe(premier.refresh_token);
+      // Les deux jetons d'acces portent la meme session : aucun des deux n'a chasse l'autre.
+      for (const token of [premier.access_token, rejeu.json().access_token]) {
+        expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(token) })).statusCode).toBe(200);
+      }
+    });
+
+    it('refuse un jeton remplace une fois la tolerance passee', async () => {
+      const { refresh_token } = (await sinscrire({ email: 'autre@alpha.fr' })).json();
+      await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+      await app.db('refresh_token').where({ token: refresh_token }).update({ replaced_at: new Date(Date.now() - 2 * 60_000) });
+
+      const rejeu = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+
+      expect(rejeu.statusCode).toBe(401);
+    });
+
+    it("refuse un jeton remplace si la session en cours a ete fermee entre-temps", async () => {
+      const { refresh_token } = (await sinscrire({ email: 'autre@alpha.fr' })).json();
+      const premier = (await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } })).json();
+      await app.inject({ method: 'POST', url: '/auth/logout', headers: auth(premier.access_token) });
+
+      const rejeu = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+
+      expect(rejeu.statusCode).toBe(401);
+    });
+
+    it('refuse un jeton inutilise depuis plus de 90 jours', async () => {
+      const { refresh_token } = (await sinscrire({ email: 'autre@alpha.fr' })).json();
+      await app.db('refresh_token').where({ token: refresh_token }).update({ created_at: new Date(Date.now() - 91 * 24 * 3600_000) });
+
+      const res = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+
+      expect(res.statusCode).toBe(401);
+      expect(await app.db('refresh_token').where({ token: refresh_token }).first()).toBeUndefined();
+    });
+
+    it('une connexion neuve balaie les jetons remplaces en attente', async () => {
+      const { refresh_token } = (await sinscrire({ email: 'autre@alpha.fr' })).json();
+      await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+      await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'autre@alpha.fr', password: TEST_PASSWORD } });
+
+      const rejeu = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token } });
+
       expect(rejeu.statusCode).toBe(401);
     });
 
