@@ -32,7 +32,7 @@ describe("Parcours d'invitation", () => {
     admin = org.admin;
   });
 
-  /** Invite quelqu'un et renvoie le jeton lu en base. */
+  /** Invite quelqu'un et renvoie le jeton de l'invitation creee. */
   async function inviter(params: { email: string; role?: string; locale?: string }): Promise<string> {
     const res = await app.inject({
       method: 'POST',
@@ -41,8 +41,7 @@ describe("Parcours d'invitation", () => {
       payload: { email: params.email, role: params.role ?? 'employee', ...(params.locale ? { locale: params.locale } : {}) },
     });
     expect(res.statusCode).toBe(201);
-    const row = await app.db('invitation').where({ email: params.email }).first();
-    return row.token as string;
+    return res.json().token as string;
   }
 
   const inscrire = (jeton: string, extra: Record<string, unknown> = {}) =>
@@ -87,6 +86,51 @@ describe("Parcours d'invitation", () => {
 
     expect(inscription.statusCode).toBe(201);
     expect(inscription.json().user.email).toBe('arthur.durand@alpha.fr');
+  });
+
+  describe('liste des invitations en attente', () => {
+    const lister = () => app.inject({ method: 'GET', url: '/invitations', headers: auth(admin.token) });
+
+    it("ne montre que ce qui attend encore quelqu'un", async () => {
+      await inviter({ email: 'attend@alpha.fr' });
+      const acceptee = await inviter({ email: 'arrivee@alpha.fr' });
+      expect((await inscrire(acceptee)).statusCode).toBe(201);
+      await inviter({ email: 'perimee@alpha.fr' });
+      await app.db('invitation').where({ email: 'perimee@alpha.fr' }).update({ expires_at: new Date(Date.now() - 1000) });
+
+      const res = await lister();
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.map((i: { email: string }) => i.email)).toEqual(['attend@alpha.fr']);
+      expect(res.json().meta.total).toBe(1);
+    });
+
+    it('une reinvitation remplace la precedente', async () => {
+      const premiere = await inviter({ email: 'relancee@alpha.fr' });
+      const seconde = await inviter({ email: 'Relancee@alpha.fr' });
+
+      expect(seconde).not.toBe(premiere);
+      const rows = await app.db('invitation').where({ email: 'relancee@alpha.fr' }).orderBy('created_at');
+      expect(rows.map((r) => r.status)).toEqual(['expired', 'pending']);
+      expect((await lister()).json().data).toHaveLength(1);
+      // L'ancien lien ne sert plus a rien.
+      expect((await inscrire(premiere)).statusCode).toBe(400);
+    });
+
+    it("l'arrivee de la personne solde aussi une ancienne invitation perimee restee en attente", async () => {
+      // Une invitation perimee d'avant la regle de remplacement : on la laisse
+      // en attente a la main, comme on en trouve en base.
+      const ancienne = await inviter({ email: 'emmie@alpha.fr' });
+      await app.db('invitation').where({ token: ancienne }).update({ expires_at: new Date(Date.now() - 1000) });
+      const nouvelle = await inviter({ email: 'emmie@alpha.fr' });
+      await app.db('invitation').where({ token: ancienne }).update({ status: 'pending' });
+
+      expect((await inscrire(nouvelle)).statusCode).toBe(201);
+
+      const rows = await app.db('invitation').where({ email: 'emmie@alpha.fr' });
+      expect(rows.every((r) => r.status === 'accepted')).toBe(true);
+      expect((await lister()).json().data).toHaveLength(0);
+    });
   });
 
   it("retient la langue choisie par celui qui invite", async () => {

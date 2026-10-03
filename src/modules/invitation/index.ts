@@ -43,7 +43,15 @@ export default fp(
       const query = paginationSchema.parse(request.query);
       const orgId = membership.organization_id;
       const { page = 1, limit = 20 } = query;
-      const baseQuery = fastify.db('invitation').where('organization_id', orgId);
+      // Seules les invitations encore utilisables : une invitation acceptee ou
+      // perimee n'est plus « en attente » de rien, et un jeton perime est
+      // refuse partout ailleurs. L'afficher inviterait a attendre une personne
+      // deja arrivee, ou qui ne pourra plus venir par ce lien.
+      const baseQuery = fastify
+        .db('invitation')
+        .where('organization_id', orgId)
+        .where('status', 'pending')
+        .where('expires_at', '>', fastify.db.fn.now());
       const [{ count }] = (await baseQuery.clone().count('* as count')) as { count: string }[];
       const data = await baseQuery
         .clone()

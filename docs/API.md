@@ -467,6 +467,28 @@ celui de l'invitation admin d'un collegue, s'en servir, et devenir
 administrateur de l'entreprise. Le jeton ne doit exister qu'a deux endroits : la
 base, et le mail de son destinataire.
 
+### Ce que la liste contient
+
+`GET /invitations` ne renvoie que les invitations **encore utilisables** :
+`status = pending` et non expirees. Une invitation acceptee n'attend plus
+personne, et une invitation perimee ne peut plus servir — son jeton est refuse
+par `/invitations/by-token` comme par `/auth/register`. L'afficher « en
+attente » laissait croire qu'on attendait une personne deja dans l'equipe.
+
+Deux regles tiennent cette liste a jour sans intervention :
+
+- **Reinviter remplace.** `POST /invitations` passe en `expired` toute
+  invitation `pending` de la meme adresse dans la meme organisation avant d'en
+  creer une nouvelle. L'ancien lien cesse de fonctionner.
+- **Arriver solde tout.** Quand une invitation est honoree — inscription par
+  le lien, ou rattachement d'un compte existant — toutes les invitations
+  `pending` de cette adresse dans cette organisation passent en `accepted`,
+  pas seulement celle qui a servi.
+
+Une migration (`20261003150000_settle_stale_invitations.js`) a solde
+l'existant : les invitations restees en attente alors que la personne etait
+deja membre.
+
 ### Langue des e-mails
 
 Deux mecanismes, parce que les deux situations different.

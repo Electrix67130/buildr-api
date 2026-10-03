@@ -33,6 +33,14 @@ class InvitationService extends BaseService<InvitationRow> {
       throw Object.assign(new Error('Inviter has no active organization'), { statusCode: 400 });
     }
 
+    // Une reinvitation remplace la precedente : sinon la liste « en attente »
+    // garde l'ancienne, perimee, a cote de la nouvelle, et personne ne sait
+    // laquelle fait foi.
+    await this.db(this.table)
+      .whereRaw('lower(email) = lower(?)', [data.email])
+      .where({ organization_id: inviter.active_organization_id, status: 'pending' })
+      .update({ status: 'expired' });
+
     const invitation = await this.create({
       email: data.email,
       invited_by: invitedBy,
@@ -91,7 +99,14 @@ class InvitationService extends BaseService<InvitationRow> {
       .onConflict(['organization_id', 'user_id'])
       .ignore();
 
-    await this.db(this.table).where({ id: invitation.id }).update({ status: 'accepted' });
+    // Toutes les invitations en attente de cette adresse dans cette organisation
+    // sont soldees, pas seulement celle qui a servi : une invitation perimee
+    // oubliee resterait sinon affichee « en attente » alors que la personne
+    // est deja dans l'equipe.
+    await this.db(this.table)
+      .whereRaw('lower(email) = lower(?)', [invitation.email])
+      .where({ organization_id: invitation.organization_id, status: 'pending' })
+      .update({ status: 'accepted' });
 
     const inviterMembership = await this.db('organization_member')
       .where({ user_id: invitation.invited_by, organization_id: invitation.organization_id })

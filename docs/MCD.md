@@ -146,7 +146,8 @@ vol : un renvoi doit repartir dans la meme langue.
 
 **Migrations :** `20260412120004_create_invitation.js`,
 `20260903183737_add_locale_to_invitation.js`,
-`20261003140000_normalize_email_lowercase.js`
+`20261003140000_normalize_email_lowercase.js`,
+`20261003150000_settle_stale_invitations.js` (reprise de donnees)
 
 ---
 
