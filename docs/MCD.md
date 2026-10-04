@@ -165,8 +165,27 @@ vol : un renvoi doit repartir dans la meme langue.
 | `chantier_id` | uuid | NOT NULL, FK -> `chantier.id` CASCADE |
 | `author_id` | uuid | NOT NULL, FK -> `user.id` CASCADE |
 | `content` | text | NOT NULL |
+| `reply_to_id` | uuid | nullable, FK -> `comment.id` SET NULL — message cite |
 | `created_at` | timestamp | NOT NULL, default now |
 | `updated_at` | timestamp | NOT NULL, default now |
+
+Migration : `20261004120000_comment_replies_reactions.js` (aussi la table
+`comment_reaction`).
+
+---
+
+## Table : `comment_reaction`
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `comment_id` | uuid | NOT NULL, FK -> `comment.id` CASCADE |
+| `user_id` | uuid | NOT NULL, FK -> `user.id` CASCADE |
+| `emoji` | varchar(16) | NOT NULL — un des `REACTION_EMOJIS` |
+| `created_at` | timestamp | NOT NULL, default now |
+
+**Unicite :** `uq_comment_reaction` (comment_id, user_id, emoji) — reagir deux
+fois du meme emoji retire la reaction. **Index :** `idx_comment_reaction_comment`.
 
 **Index :** `idx_comment_chantier` (chantier_id, created_at)
 

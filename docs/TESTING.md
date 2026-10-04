@@ -1,6 +1,6 @@
 # Tests
 
-481 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+489 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 
@@ -48,6 +48,7 @@ l'etage integration.
 | `files.test.ts` | Acces aux fichiers : la seule route sans cle d'API, protegee par le seul jeton signe |
 | `feedback.test.ts` | Signalements : depot, cloisonnement auteur/support, reponse, notification a l'auteur |
 | `push.test.ts` | Envoi des notifications : une langue par destinataire, exclusion de l'acteur, refus des notifications |
+| `comment.test.ts` | Discussions : citation d'un message du meme chantier, reactions comptees par emoji, interrupteur, droits |
 | `chantier-permissions.test.ts` | Droits fins au sein d'un chantier : un drapeau ouvre une ressource et une seule |
 | `team.test.ts` | Equipes : composition, consultation, cloisonnement entre organisations |
 | `super-admin.test.ts` | Console Buildr : garde sur chaque route, usurpation d'identite, coupure de compte, journal d'audit |

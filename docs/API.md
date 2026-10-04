@@ -655,12 +655,27 @@ verifiee.
 | POST | `/comments` | JWT | Ajouter un commentaire |
 | PATCH | `/comments/:id` | JWT | Modifier |
 | DELETE | `/comments/:id` | JWT | Supprimer |
+| POST | `/comments/:id/reactions` | JWT | Ajouter ou retirer sa reaction (interrupteur) |
 
 ### POST /comments
 
-**Body :** `{ "chantier_id": "uuid", "content": "string" }`
+**Body :** `{ "chantier_id": "uuid", "content": "string", "step_id"?: "uuid", "reply_to_id"?: "uuid" }`
 
 **Reponse 201 :** commentaire cree (author_id = utilisateur connecte)
+
+### Repondre a un message, reagir d'un emoji
+
+`reply_to_id` designe le message cite ; il doit appartenir au meme chantier,
+sinon **400**. La liste renvoie sur chaque message `reply_to: { id, content,
+author_id, first_name, last_name } | null` — `null` aussi quand le message cite
+a ete supprime depuis (la reponse reste, sans citation).
+
+`POST /comments/:id/reactions` avec `{ "emoji": "👍" }` ajoute la reaction de
+l'appelant, ou la retire s'il l'avait deja posee. Les emojis admis sont la
+liste fermee `REACTION_EMOJIS` (`comment.schema.ts`) : 👍 ❤️ 😂 😮 😢 🙏 🔥.
+Reponse : `{ comment_id, reactions }`. La liste renvoie sur chaque message
+`reactions: [{ emoji, count, mine }]`, `mine` du point de vue de l'appelant.
+Chaque bascule emet `comment.updated` sur le canal temps reel.
 
 ---
 

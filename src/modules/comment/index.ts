@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import { z } from 'zod';
 import CommentService from './comment.service';
-import { createCommentSchema, updateCommentSchema } from './comment.schema';
+import { createCommentSchema, updateCommentSchema, reactionSchema } from './comment.schema';
 import { requirePermission } from '@/lib/permissions';
 import { emitToChantier } from '@/lib/realtime-hub';
 import { sendPushToChantier } from '@/lib/push-notifications';
@@ -28,7 +28,7 @@ export default fp(
     fastify.get('/comments', { preHandler: [fastify.authenticate] }, async (request) => {
       const { chantier_id, step_id, ...pagination } = byChantierSchema.parse(request.query);
       await requirePermission(fastify.db, request.user.sub, chantier_id, 'view_comments');
-      return service.findByChantier(chantier_id, { ...pagination, stepId: step_id });
+      return service.findByChantier(chantier_id, { ...pagination, stepId: step_id, viewerId: request.user.sub });
     });
 
     // GET /comments/:id
@@ -53,6 +53,15 @@ export default fp(
         }
       }
 
+      // Le message cite doit etre du meme chantier : sinon on pourrait faire
+      // apparaitre chez soi un extrait de la discussion d'un autre chantier.
+      if (data.reply_to_id) {
+        const target = await fastify.db('comment').where({ id: data.reply_to_id }).select('chantier_id').first();
+        if (!target || target.chantier_id !== data.chantier_id) {
+          return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'reply_to_id ne correspond pas au chantier' });
+        }
+      }
+
       const comment = await service.create({ ...data, author_id: request.user.sub });
       emitToChantier(fastify.db, data.chantier_id, {
         type: 'comment.created',
@@ -72,6 +81,25 @@ export default fp(
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
       return reply.code(201).send(comment);
+    });
+
+    // POST /comments/:id/reactions — interrupteur : ajoute ou retire SA reaction.
+    // Quiconque peut lire la discussion peut y reagir, comme pour ecrire.
+    fastify.post('/comments/:id/reactions', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+      const { id } = uuidSchema.parse(request.params);
+      const { emoji } = reactionSchema.parse(request.body);
+      const existing = await service.findById(id);
+      if (!existing) return reply.notFound('Comment not found');
+      await requirePermission(fastify.db, request.user.sub, existing.chantier_id, 'view_comments');
+
+      const reactions = await service.toggleReaction(id, request.user.sub, emoji);
+      emitToChantier(fastify.db, existing.chantier_id, {
+        type: 'comment.updated',
+        chantier_id: existing.chantier_id,
+        resource_id: id,
+        actor_id: request.user.sub,
+      }).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
+      return { comment_id: id, reactions };
     });
 
     // PATCH /comments/:id — only the author can edit
