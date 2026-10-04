@@ -227,7 +227,7 @@ class UserService extends BaseService<UserRow> {
    * Renvoie l'organisation que l'utilisateur laisserait sans aucun admin s'il partait,
    * alors qu'elle compte encore d'autres membres. `undefined` si aucun risque.
    */
-  private async findOrgLeftWithoutAdmin(userId: string): Promise<{ name: string } | undefined> {
+  async findOrgLeftWithoutAdmin(userId: string): Promise<{ name: string } | undefined> {
     const adminOrgs = (await this.db('organization_member')
       .where({ user_id: userId, role: 'admin' })
       .select('organization_id')) as { organization_id: string }[];
@@ -281,6 +281,17 @@ class UserService extends BaseService<UserRow> {
       );
     }
 
+    await this.anonymizeAccount(userId);
+  }
+
+  /**
+   * Anonymise un compte : c'est LA suppression, quel que soit le chemin —
+   * par soi-meme, par un administrateur, par la console. La ligne reste pour
+   * que les messages, photos et chantiers crees survivent sous « Compte
+   * supprime » ; une suppression physique les emporterait en cascade, ou
+   * echouerait sur les cles en RESTRICT.
+   */
+  async anonymizeAccount(userId: string): Promise<void> {
     await this.db.transaction(async (trx) => {
       // Revoque les acces et supprime les donnees personnelles rattachees.
       await trx('refresh_token').where({ user_id: userId }).del();

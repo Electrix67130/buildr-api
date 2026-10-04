@@ -161,13 +161,48 @@ describe('Droits par role', () => {
   });
 
   describe('suppression de compte', () => {
-    it("l'admin peut supprimer un membre", async () => {
+    it("l'admin peut supprimer un membre : le compte est anonymise, pas efface", async () => {
       const res = await app.inject({
         method: 'DELETE',
         url: `/users/${employee.id}`,
         headers: auth(admin.token),
       });
+
       expect(res.statusCode).toBe(204);
+      const row = await app.db('user').where({ id: employee.id }).first();
+      expect(row).toBeTruthy();
+      expect(row.is_active).toBe(false);
+      expect(row.deleted_at).toBeTruthy();
+      expect(row.email).toBe(`deleted-${employee.id}@deleted.invalid`);
+      expect(await app.db('organization_member').where({ user_id: employee.id })).toHaveLength(0);
+    });
+
+    it("ses messages et photos survivent sous « Compte supprime »", async () => {
+      const chantier = (await app.inject({ method: 'POST', url: '/chantiers', headers: auth(admin.token), payload: { name: 'Pont' } })).json();
+      await app.inject({ method: 'POST', url: '/chantier-members', headers: auth(admin.token), payload: { chantier_id: chantier.id, user_id: employee.id, role: 'ouvrier', can_edit: true } });
+      const message = (await app.inject({ method: 'POST', url: '/comments', headers: auth(employee.token), payload: { chantier_id: chantier.id, content: 'Coffrage fini' } })).json();
+      const photo = (await app.inject({ method: 'POST', url: '/photos', headers: auth(employee.token), payload: { chantier_id: chantier.id, url: 'http://localhost:3000/files/p.jpg' } })).json();
+
+      await app.inject({ method: 'DELETE', url: `/users/${employee.id}`, headers: auth(admin.token) });
+
+      expect(await app.db('comment').where({ id: message.id }).first()).toBeTruthy();
+      expect(await app.db('photo').where({ id: photo.id }).first()).toBeTruthy();
+      const liste = await app.inject({ method: 'GET', url: `/comments?chantier_id=${chantier.id}`, headers: auth(admin.token) });
+      expect(liste.json().data[0].first_name).toBe('Compte');
+    });
+
+    it("refuse de supprimer le seul administrateur d'une autre organisation", async () => {
+      const autre = await createOrgWithAdmin(app, 'Beta BTP');
+      // Beta a d'autres membres : sans son admin, plus personne ne la gere.
+      await createUser(app, { organizationId: autre.organizationId, role: 'employee' });
+      // L'admin de Beta rejoint Alpha comme employe : Alpha peut le voir, mais
+      // le supprimer laisserait Beta sans administrateur.
+      await app.db('organization_member').insert({ organization_id: organizationId, user_id: autre.admin.id, role: 'employee' });
+
+      const res = await app.inject({ method: 'DELETE', url: `/users/${autre.admin.id}`, headers: auth(admin.token) });
+
+      expect(res.statusCode).toBe(409);
+      expect((await app.db('user').where({ id: autre.admin.id }).first()).is_active).toBe(true);
     });
 
     it.each([

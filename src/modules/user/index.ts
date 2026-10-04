@@ -250,12 +250,23 @@ export default fp(
         });
       }
 
-      // Avant la suppression : les sockets et le cache de session sont en
-      // memoire, ils survivraient a la ligne. La personne voit son ecran se
-      // fermer au lieu de decouvrir le compte disparu a la prochaine action.
+      // Le compte peut etre seul administrateur d'une AUTRE organisation :
+      // la supprimer la laisserait sans personne pour la gerer.
+      const orphanedOrg = await service.findOrgLeftWithoutAdmin(id);
+      if (orphanedOrg) {
+        return reply.code(409).send({
+          statusCode: 409,
+          error: 'Conflict',
+          message: `Ce compte est le seul administrateur de « ${orphanedOrg.name} ». Un autre administrateur doit y etre nomme avant.`,
+        });
+      }
+
+      // Anonymisation, pas suppression physique : ses messages et photos
+      // restent dans les chantiers sous « Compte supprime ». Les sessions
+      // sont coupees d'abord — sockets et cache sont en memoire — pour que la
+      // personne voie son ecran se fermer tout de suite.
       await revokeAllSessions(fastify.db, id, 'account-deleted');
-      const deleted = await service.delete(id);
-      if (!deleted) return reply.notFound('User not found');
+      await service.anonymizeAccount(id);
       return reply.code(204).send();
     });
 

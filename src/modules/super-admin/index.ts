@@ -1,8 +1,10 @@
 import fp from 'fastify-plugin';
+import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { requireSuperAdmin, logAudit } from '@/lib/super-admin';
 import { revokeAllSessions } from '@/lib/sessions';
+import UserService from '@/modules/user/user.service';
 import type { CloseReason } from '@/lib/realtime-hub';
 import {
   paginationSchema,
@@ -348,17 +350,27 @@ export default fp(
       return { ok: true, temporary_password: tempPassword };
     });
 
+    // DELETE /super-admin/users/:id — anonymisation, comme partout. `?purge=1`
+    // supprime physiquement la ligne : reserve aux demandes d'effacement
+    // complet, en sachant que ses photos et messages partent en cascade et
+    // que la suppression echoue s'il a cree un chantier ou une invitation.
     fastify.delete('/super-admin/users/:id', { preHandler: guard }, async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
+      const { purge } = z.object({ purge: z.enum(['1', 'true']).optional() }).parse(request.query);
       if (id === request.user.sub) {
         return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot delete yourself' });
       }
+      const exists = await fastify.db('user').where({ id }).first();
+      if (!exists) return reply.notFound('User not found');
       await revokeSessions(id, 'account-deleted');
-      const deleted = await fastify.db('user').where({ id }).del();
-      if (!deleted) return reply.notFound('User not found');
+      if (purge) {
+        await fastify.db('user').where({ id }).del();
+      } else {
+        await new UserService(fastify.db).anonymizeAccount(id);
+      }
       await logAudit(fastify.db, {
         super_admin_id: request.user.sub,
-        action: 'user.delete',
+        action: purge ? 'user.purge' : 'user.delete',
         target_type: 'user',
         target_id: id,
         ip: request.ip,

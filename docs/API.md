@@ -240,6 +240,14 @@ ne suffise pas a detruire un compte.
 | 404 | Compte inexistant ou deja supprime |
 | 409 | L'utilisateur est le dernier admin d'une organisation qui compte encore des membres |
 
+**Le meme comportement vaut pour `DELETE /users/:id`** (admin de l'organisation) et
+pour la console (`DELETE /super-admin/users/:id`) : anonymisation, jamais de suppression
+physique. Un admin ne peut pas supprimer le seul administrateur d'une autre organisation
+(`409`). Avant, ces deux chemins supprimaient la ligne : les photos et messages du compte
+partaient en cascade, et la suppression echouait des qu'il avait cree un chantier. La
+console garde une purge physique explicite, `?purge=1`, pour les demandes d'effacement
+complet, avec ces deux effets assumes.
+
 **Comportement** — la ligne `user` n'est pas supprimee physiquement : plusieurs FK sont en
 RESTRICT (`chantier.created_by`, `invitation.invited_by`, `organization.created_by`), un
 DELETE echouerait des que l'utilisateur a cree un chantier. Elle est **anonymisee** :

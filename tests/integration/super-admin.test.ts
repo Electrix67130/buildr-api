@@ -250,8 +250,23 @@ describe('Console super admin', () => {
       });
 
       expect(res.statusCode).toBe(204);
-      expect(await app.db('user').where({ id: ouvrier.id }).first()).toBeUndefined();
+      // Anonymise, pas efface : ses photos et messages restent dans les chantiers.
+      const row = await app.db('user').where({ id: ouvrier.id }).first();
+      expect(row.is_active).toBe(false);
+      expect(row.deleted_at).toBeTruthy();
       expect(await app.db('audit_log').where({ action: 'user.delete', target_id: ouvrier.id }).first()).toBeTruthy();
+    });
+
+    it('purge physiquement sur demande explicite, et le consigne a part', async () => {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/super-admin/users/${ouvrier.id}?purge=1`,
+        headers: auth(superAdmin.token),
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(await app.db('user').where({ id: ouvrier.id }).first()).toBeUndefined();
+      expect(await app.db('audit_log').where({ action: 'user.purge', target_id: ouvrier.id }).first()).toBeTruthy();
     });
   });
 
