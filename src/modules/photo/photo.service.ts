@@ -18,6 +18,9 @@ class PhotoService extends BaseService<PhotoRow> {
     const baseQuery = this.db(this.table)
       .join('user', 'photo.uploaded_by', 'user.id')
       .where('photo.chantier_id', chantierId)
+      // Les photos d'une urgence se voient sur l'urgence, pas dans la galerie :
+      // elles documentent un incident, pas l'avancement du chantier.
+      .whereNull('photo.emergency_id')
       .modify((qb) => {
         if (stepId) qb.where('photo.step_id', stepId);
       });

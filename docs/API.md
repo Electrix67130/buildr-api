@@ -980,7 +980,9 @@ thumbnail_url, created_at }]`. L'ancienne forme a une seule `photo_url` reste
 acceptee ; `photo_url` garde toujours la premiere photo, pour les clients qui ne
 lisent pas encore `photos`. `POST /emergencies/:id/photos` en ajoute apres coup
 (auteur de l'urgence, ou droit `edit` sur le chantier). Supprimer l'urgence
-emporte ses photos. Migration `20261004140000_emergency_photos.js`, qui a repris
+emporte ses photos. **La galerie du chantier (`GET /photos`) ne les renvoie
+pas**, et les compteurs de photos non lues ne les comptent pas : elles se
+voient sur l'urgence, qui a ses propres compteurs. Migration `20261004140000_emergency_photos.js`, qui a repris
 les photos existantes dans la galerie.
 
 ### POST /emergencies

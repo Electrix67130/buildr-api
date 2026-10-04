@@ -113,6 +113,8 @@ class ChantierViewService {
     if (perms.view_photos) {
       const [row] = (await this.db('photo')
         .where({ chantier_id: chantierId })
+        // Les photos d'urgence sont comptees avec les urgences, pas deux fois.
+        .whereNull('emergency_id')
         .where('created_at', '>', lastSeen('photos'))
         .whereNot('uploaded_by', userId)
         .count('* as count')) as { count: string }[];

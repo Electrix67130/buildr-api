@@ -295,6 +295,16 @@ describe('Urgences et membres de chantier', () => {
       expect(res.statusCode).toBe(403);
     });
 
+    it("la galerie du chantier ne les montre pas", async () => {
+      await app.inject({ method: 'POST', url: '/emergencies', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, photos } });
+      await app.inject({ method: 'POST', url: '/photos', headers: auth(admin.token), payload: { chantier_id: chantierId, url: 'http://localhost:3000/files/chantier.jpg' } });
+
+      const galerie = await app.inject({ method: 'GET', url: `/photos?chantier_id=${chantierId}`, headers: auth(admin.token) });
+
+      expect(galerie.json().meta.total).toBe(1);
+      expect(galerie.json().data[0].url).toContain('/files/chantier.jpg');
+    });
+
     it("supprimer l'urgence emporte ses photos", async () => {
       const created = (await app.inject({ method: 'POST', url: '/emergencies', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, photos } })).json();
 
