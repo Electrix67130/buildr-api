@@ -23,18 +23,28 @@ import env from '@/config/env';
 export const FILE_URL_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_TTL_MS = FILE_URL_TTL_MS;
 
-/** Une URL deja signee porte son token en query string. */
-function isSigned(fileUrl: string): boolean {
-  return fileUrl.includes('?t=') || fileUrl.includes('&t=');
+/**
+ * Retire le jeton d'une URL de fichier, pour la stocker nue.
+ *
+ * Le hook global signe TOUTES les reponses, celle de `/upload` comprise : le
+ * client recevait une URL deja signee et la renvoyait telle quelle a la
+ * creation de la photo. La base gardait donc un jeton, perime 24 h plus tard,
+ * et la signature des listes — qui ne touchait pas a une URL deja signee — le
+ * laissait passer. Resultat : toutes les photos de la veille en 403, seules
+ * celles du jour visibles. Les schemas passent desormais par ici a l'ecriture.
+ */
+export function stripFileToken(fileUrl: string): string {
+  if (!fileUrl.includes('/files/')) return fileUrl;
+  const i = fileUrl.indexOf('?');
+  return i === -1 ? fileUrl : fileUrl.slice(0, i);
 }
 
 /** Generate a signed URL for a file path like /files/abc-123.pdf */
 export function signFileUrl(fileUrl: string): string {
-  // Idempotent : resigner une URL deja signee produirait un nom de fichier
-  // contenant la query string, donc un 404.
-  if (isSigned(fileUrl)) return fileUrl;
-
-  const filename = fileUrl.split('/').pop();
+  // Toujours un jeton frais, meme si l'URL en porte deja un : un jeton stocke
+  // ou mis en cache finit toujours par perimer, et c'est au moment de servir
+  // la liste qu'on sait qu'il faut en donner un valable.
+  const filename = stripFileToken(fileUrl).split('/').pop();
   if (!filename) return fileUrl;
 
   const expires = Date.now() + TOKEN_TTL_MS;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { stripFileToken } from '@/lib/sign-url';
 import { PHONE_INPUT_PATTERN, PHONE_INPUT_MAX } from '@/lib/phone';
 
 // Champs légaux et contact, partagés entre create/update.
@@ -19,7 +20,7 @@ const legalFields = {
   billing_email: z.string().email().max(255).nullable().optional(),
   website: z.string().url().max(500).nullable().optional(),
 
-  logo_url: z.string().url().max(500).nullable().optional(),
+  logo_url: z.string().url().max(700).transform(stripFileToken).nullable().optional(),
 
   insurance_provider: z.string().max(200).nullable().optional(),
   insurance_number: z.string().max(100).nullable().optional(),

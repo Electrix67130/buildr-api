@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { stripFileToken } from '@/lib/sign-url';
 
 export const createPhotoSchema = z.object({
   chantier_id: z.string().uuid(),
-  url: z.string().url().max(1000),
-  thumbnail_url: z.string().url().max(1000).optional(),
+  url: z.string().url().max(1200).transform(stripFileToken),
+  thumbnail_url: z.string().url().max(1200).transform(stripFileToken).optional(),
   caption: z.string().max(500).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),

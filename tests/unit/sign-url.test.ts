@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'crypto';
-import { signFileUrl, signUrlsDeep, signUrlsIn, signUrlsInList, FILE_URL_TTL_MS } from '@/lib/sign-url';
+import { signFileUrl, signUrlsDeep, signUrlsIn, signUrlsInList, stripFileToken, FILE_URL_TTL_MS } from '@/lib/sign-url';
 
 /**
  * Signature des URLs de fichiers.
@@ -68,17 +68,25 @@ describe('Signature des URLs de fichiers', () => {
     expect(signFileUrl(externe)).toContain('/files/avatar.png');
   });
 
-  it("ne resigne pas une URL qui porte deja un jeton", () => {
-    // Comportement voulu — resigner produirait un nom de fichier contenant la
-    // query string, donc un 404.
-    //
-    // Mais c'est aussi ce qui rend definitive la peremption d'une URL signee
-    // ENREGISTREE EN BASE : elle ne sera jamais rafraichie. Les clients stockent
-    // la reponse de /upload, deja signee. Tant que ce sera le cas, allonger la
-    // duree de validite ne fera que retarder la panne.
-    const signee = signFileUrl('http://localhost:3000/files/photo-123.jpg');
+  it("remplace un jeton perime par un jeton frais", () => {
+    // Les clients renvoyaient a la creation l'URL deja signee recue de /upload ;
+    // la base gardait un jeton, perime 24 h plus tard, que la signature des
+    // listes laissait passer. Toutes les photos de la veille repondaient 403.
+    const perime = Buffer.from(JSON.stringify({ f: 'photo-123.jpg', e: Date.now() - 1000, s: 'x' })).toString('base64url');
 
-    expect(signFileUrl(signee)).toBe(signee);
+    const resignee = signFileUrl(`http://localhost:3000/files/photo-123.jpg?t=${perime}`);
+
+    const charge = decoder(resignee);
+    expect(charge.f).toBe('photo-123.jpg');
+    expect(charge.e).toBeGreaterThan(Date.now());
+    expect(signatureValide(charge)).toBe(true);
+    expect(new URL(resignee).pathname).toBe('/files/photo-123.jpg');
+  });
+
+  it("sait retirer le jeton d'une URL de fichier, et laisse le reste intact", () => {
+    expect(stripFileToken('http://localhost:3000/files/a.jpg?t=abc')).toBe('http://localhost:3000/files/a.jpg');
+    expect(stripFileToken('http://localhost:3000/files/a.jpg')).toBe('http://localhost:3000/files/a.jpg');
+    expect(stripFileToken('https://exemple.fr/page?x=1')).toBe('https://exemple.fr/page?x=1');
   });
 
   it('signe toutes les URLs de fichiers, quel que soit le nom du champ', () => {

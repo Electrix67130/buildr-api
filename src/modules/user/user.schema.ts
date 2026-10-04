@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PHONE_INPUT_PATTERN, PHONE_INPUT_MAX } from '@/lib/phone';
 import { emailSchema } from '@/lib/email';
+import { stripFileToken } from '@/lib/sign-url';
 
 export const createUserSchema = z.object({
   email: emailSchema,
@@ -8,7 +9,7 @@ export const createUserSchema = z.object({
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
   phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX).optional(),
-  avatar_url: z.string().url().max(500).optional(),
+  avatar_url: z.string().url().max(700).transform(stripFileToken).optional(),
   role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional().default('employee'),
   company_name: z.string().max(200).optional(),
 });
@@ -18,7 +19,7 @@ export const updateUserSchema = z.object({
   first_name: z.string().min(1).max(100).optional(),
   last_name: z.string().min(1).max(100).optional(),
   phone: z.string().regex(PHONE_INPUT_PATTERN, 'Numéro de téléphone invalide').max(PHONE_INPUT_MAX).optional(),
-  avatar_url: z.string().url().max(500).nullable().optional(),
+  avatar_url: z.string().url().max(700).transform(stripFileToken).nullable().optional(),
   role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional(),
   company_name: z.string().max(200).optional(),
   is_active: z.boolean().optional(),

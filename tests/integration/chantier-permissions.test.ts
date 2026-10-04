@@ -220,4 +220,30 @@ describe('Permissions par chantier', () => {
       expect(res.body).not.toContain('Contrat confidentiel');
     });
   });
+
+  /**
+   * L'URL recue de /upload est deja signee. Stockee telle quelle, son jeton
+   * perimait 24 h plus tard et la liste la renvoyait sans la rafraichir :
+   * toutes les photos de la veille en 403.
+   */
+  describe('URLs de fichiers stockees', () => {
+    it("stocke l'URL nue et sert un jeton frais", async () => {
+      const perime = Buffer.from(JSON.stringify({ f: 'vieille.jpg', e: Date.now() - 1000, s: 'x' })).toString('base64url');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/photos',
+        headers: auth(admin.token),
+        payload: { chantier_id: chantierId, url: `http://localhost:3000/files/vieille.jpg?t=${perime}` },
+      });
+      expect(res.statusCode).toBe(201);
+
+      const stockee = await app.db('photo').where({ id: res.json().id }).first();
+      expect(stockee.url).toBe('http://localhost:3000/files/vieille.jpg');
+
+      const liste = await app.inject({ method: 'GET', url: `/photos?chantier_id=${chantierId}`, headers: auth(admin.token) });
+      const servie = liste.json().data.find((p: { id: string }) => p.id === res.json().id).url as string;
+      const jeton = JSON.parse(Buffer.from(new URL(servie).searchParams.get('t')!, 'base64url').toString());
+      expect(jeton.e).toBeGreaterThan(Date.now());
+    });
+  });
 });

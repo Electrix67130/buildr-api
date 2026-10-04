@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { stripFileToken } from '@/lib/sign-url';
 
 export const createEmergencySchema = z.object({
   chantier_id: z.string().uuid(),
-  photo_url: z.string().max(1000).optional(),
-  thumbnail_url: z.string().max(1000).optional(),
+  photo_url: z.string().max(1200).transform(stripFileToken).optional(),
+  thumbnail_url: z.string().max(1200).transform(stripFileToken).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
   description: z.string().max(2000).optional(),

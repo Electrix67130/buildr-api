@@ -807,6 +807,15 @@ URLs stockees en **URLs signees valables 24 heures**, via un token HMAC. Un
 client qui garde une URL en cache au-dela doit la regenerer avec
 `GET /files/token/:filename`.
 
+**Les URLs sont stockees nues, et toujours re-signees a la lecture.** Le hook
+global signe toutes les reponses, celle de `/upload` comprise : les clients
+renvoyaient donc a la creation une URL deja signee, la base gardait son jeton,
+et la signature des listes — qui ne touchait pas a une URL deja signee — le
+servait tel quel. Vingt-quatre heures plus tard, toutes les photos de la veille
+repondaient 403 et seules celles du jour s'affichaient. Les schemas retirent
+desormais le jeton a l'ecriture (`stripFileToken`), `signFileUrl` en pose un
+frais quoi qu'il arrive, et une migration a nettoye l'existant.
+
 La duree etait de 5 minutes, ce qui etait plus court que la duree de vie du
 cache client : l'app conserve la reponse contenant l'URL deja signee et
 redemandait ensuite l'image avec un jeton perime. Le symptome etait muet — la
