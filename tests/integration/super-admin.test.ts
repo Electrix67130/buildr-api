@@ -280,4 +280,42 @@ describe('Console super admin', () => {
       expect(res.json().data.map((e: { action: string }) => e.action)).toContain('user.disable');
     });
   });
+
+  describe('filtres de la liste des utilisateurs', () => {
+    const lister = (query: string) =>
+      app.inject({ method: 'GET', url: `/super-admin/users?${query}`, headers: auth(superAdmin.token) }).then((r) => r.json());
+
+    it('filtre par organisation et par role, et expose les organisations de chacun', async () => {
+      const beta = await createOrgWithAdmin(app, 'Beta BTP');
+
+      const alpha = await lister(`organization_id=${organizationId}&limit=100`);
+      const admins = await lister(`role=admin&limit=100`);
+
+      expect(alpha.data.some((u: { id: string }) => u.id === beta.admin.id)).toBe(false);
+      expect(alpha.data.some((u: { id: string }) => u.id === ouvrier.id)).toBe(true);
+      expect(admins.data.some((u: { id: string }) => u.id === beta.admin.id)).toBe(true);
+      expect(admins.data.some((u: { id: string }) => u.id === ouvrier.id)).toBe(false);
+      const row = alpha.data.find((u: { id: string }) => u.id === ouvrier.id);
+      expect(row.organizations).toEqual([expect.objectContaining({ id: organizationId, role: 'employee' })]);
+    });
+
+    it('distingue desactive et supprime', async () => {
+      await app.inject({ method: 'POST', url: `/super-admin/users/${ouvrier.id}/disable`, headers: auth(superAdmin.token) });
+      const autre = await createUser(app, { organizationId, role: 'employee' });
+      await app.inject({ method: 'DELETE', url: `/super-admin/users/${autre.id}`, headers: auth(superAdmin.token) });
+
+      const desactives = await lister('status=disabled&limit=100');
+      const supprimes = await lister('status=deleted&limit=100');
+      const actifs = await lister('status=active&limit=100');
+
+      expect(desactives.data.map((u: { id: string }) => u.id)).toEqual([ouvrier.id]);
+      expect(supprimes.data.map((u: { id: string }) => u.id)).toEqual([autre.id]);
+      expect(actifs.data.some((u: { id: string }) => u.id === ouvrier.id || u.id === autre.id)).toBe(false);
+    });
+
+    it('ne garde que les super admins sur demande', async () => {
+      const res = await lister('super_admin=1&limit=100');
+      expect(res.data.map((u: { id: string }) => u.id)).toEqual([superAdmin.id]);
+    });
+  });
 });

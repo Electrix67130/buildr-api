@@ -218,21 +218,48 @@ export default fp(
     });
 
     // ---------- Users ----------
+    const userFiltersSchema = paginationSchema.extend({
+      /** Membre de cette organisation (via organization_member). */
+      organization_id: z.string().uuid().optional(),
+      /** Role dans l'organisation filtree, ou dans n'importe laquelle sinon. */
+      role: z.enum(['admin', 'manager', 'employee', 'client', 'gestionnaire_reseau']).optional(),
+      /** `deleted` = anonymise ; `disabled` = desactive mais pas supprime. */
+      status: z.enum(['active', 'disabled', 'deleted']).optional(),
+      super_admin: z.enum(['1', 'true']).optional(),
+      sort: z.enum(['created_at', 'last_name', 'email']).default('created_at'),
+      order: z.enum(['asc', 'desc']).default('desc'),
+    });
+
     fastify.get('/super-admin/users', { preHandler: guard }, async (request) => {
-      const { page, limit, q } = paginationSchema.parse(request.query);
+      const { page, limit, q, organization_id, role, status, super_admin, sort, order } = userFiltersSchema.parse(request.query);
       const offset = (page - 1) * limit;
 
       const baseQuery = fastify.db('user');
       if (q) {
         baseQuery.where(function () {
-          this.whereILike('email', `%${q}%`)
-            .orWhereILike('first_name', `%${q}%`)
-            .orWhereILike('last_name', `%${q}%`);
+          this.whereILike('user.email', `%${q}%`)
+            .orWhereILike('user.first_name', `%${q}%`)
+            .orWhereILike('user.last_name', `%${q}%`);
         });
       }
+      if (organization_id || role) {
+        baseQuery.whereExists(function () {
+          this.select(fastify.db.raw('1'))
+            .from('organization_member')
+            .whereRaw('organization_member.user_id = "user".id')
+            .modify((qb) => {
+              if (organization_id) qb.where('organization_member.organization_id', organization_id);
+              if (role) qb.where('organization_member.role', role);
+            });
+        });
+      }
+      if (status === 'deleted') baseQuery.whereNotNull('user.deleted_at');
+      if (status === 'disabled') baseQuery.where('user.is_active', false).whereNull('user.deleted_at');
+      if (status === 'active') baseQuery.where('user.is_active', true);
+      if (super_admin) baseQuery.where('user.is_super_admin', true);
 
       const [{ count }] = (await baseQuery.clone().count('* as count')) as { count: string }[];
-      const rows = await baseQuery
+      const rows = (await baseQuery
         .clone()
         .select(
           'id',
@@ -242,14 +269,28 @@ export default fp(
           'phone',
           'is_active',
           'is_super_admin',
+          'deleted_at',
           'created_at',
         )
-        .orderBy('created_at', 'desc')
+        .orderBy(`user.${sort}`, order)
         .limit(limit)
-        .offset(offset);
+        .offset(offset)) as { id: string }[];
+
+      // Les organisations de chaque compte, pour les afficher et comprendre le
+      // filtre : un compte peut en avoir plusieurs.
+      const memberships = rows.length
+        ? await fastify.db('organization_member')
+            .join('organization', 'organization.id', 'organization_member.organization_id')
+            .whereIn('organization_member.user_id', rows.map((r) => r.id))
+            .select('organization_member.user_id', 'organization.id', 'organization.name', 'organization_member.role')
+        : [];
+      const byUser = new Map<string, { id: string; name: string; role: string }[]>();
+      for (const m of memberships as { user_id: string; id: string; name: string; role: string }[]) {
+        byUser.set(m.user_id, [...(byUser.get(m.user_id) ?? []), { id: m.id, name: m.name, role: m.role }]);
+      }
 
       return {
-        data: rows,
+        data: rows.map((r) => ({ ...r, organizations: byUser.get(r.id) ?? [] })),
         meta: {
           total: parseInt(count, 10),
           page,

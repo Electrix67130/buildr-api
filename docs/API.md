@@ -248,6 +248,15 @@ partaient en cascade, et la suppression echouait des qu'il avait cree un chantie
 console garde une purge physique explicite, `?purge=1`, pour les demandes d'effacement
 complet, avec ces deux effets assumes.
 
+### Console : `GET /super-admin/users`
+
+Filtres : `q` (email, nom), `organization_id` (membre de cette organisation),
+`role` (role dans l'organisation filtree, ou dans n'importe laquelle sinon),
+`status` (`active` | `disabled` | `deleted` — `disabled` exclut les comptes
+anonymises), `super_admin=1`, `sort` (`created_at` | `last_name` | `email`),
+`order`. Chaque ligne porte `organizations: [{ id, name, role }]` et
+`deleted_at`, pour distinguer un compte desactive d'un compte supprime.
+
 **Comportement** — la ligne `user` n'est pas supprimee physiquement : plusieurs FK sont en
 RESTRICT (`chantier.created_by`, `invitation.invited_by`, `organization.created_by`), un
 DELETE echouerait des que l'utilisateur a cree un chantier. Elle est **anonymisee** :
