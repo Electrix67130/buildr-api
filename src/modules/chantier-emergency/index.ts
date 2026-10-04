@@ -2,10 +2,11 @@ import fp from 'fastify-plugin';
 import { z } from 'zod';
 import { Knex } from 'knex';
 import ChantierEmergencyService from './chantier-emergency.service';
-import { createEmergencySchema } from './chantier-emergency.schema';
+import { createEmergencySchema, addEmergencyPhotosSchema } from './chantier-emergency.schema';
 import { signUrlsInList } from '@/lib/sign-url';
 import { isChantierAdminOrCreator, isChantierParticipant } from '@/lib/permissions';
 import { emitToChantier } from '@/lib/realtime-hub';
+import { requirePermission } from '@/lib/permissions';
 import { sendPushToChantier } from '@/lib/push-notifications';
 import { emergencyPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
@@ -64,8 +65,23 @@ export default fp(
       if (!(await canCreateEmergency(fastify.db, request.user.sub, data.chantier_id))) {
         return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'Seuls manager, ouvrier et admin peuvent créer une urgence' });
       }
-      const created = await service.create({ ...data, created_by: request.user.sub });
-      const [signed] = signUrlsInList([created]);
+      // Les photos vont dans la galerie ; `photo_url` garde la premiere pour
+      // les clients qui ne lisent pas encore `photos`.
+      const { photos: photoInputs = [], ...fields } = data;
+      const firstPhoto = photoInputs[0];
+      const created = await service.create({
+        ...fields,
+        photo_url: fields.photo_url ?? firstPhoto?.url ?? null,
+        thumbnail_url: fields.thumbnail_url ?? firstPhoto?.thumbnail_url ?? null,
+        created_by: request.user.sub,
+      });
+      const allInputs = photoInputs.length > 0
+        ? photoInputs
+        : fields.photo_url
+          ? [{ url: fields.photo_url, thumbnail_url: fields.thumbnail_url }]
+          : [];
+      const photos = await service.addPhotos(created, request.user.sub, allInputs);
+      const [signed] = signUrlsInList([{ ...created, photos }]);
       emitToChantier(fastify.db, data.chantier_id, {
         type: 'emergency.created',
         chantier_id: data.chantier_id,
@@ -92,6 +108,25 @@ export default fp(
     });
 
     // DELETE /emergencies/:id — author / admin / creator / manager
+    // POST /emergencies/:id/photos — ajouter des photos apres coup (auteur, ou droit d'edition)
+    fastify.post('/emergencies/:id/photos', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+      const { id } = uuidSchema.parse(request.params);
+      const { photos: inputs } = addEmergencyPhotosSchema.parse(request.body);
+      const existing = await service.findById(id);
+      if (!existing) return reply.notFound('Emergency not found');
+      if (existing.created_by !== request.user.sub) {
+        await requirePermission(fastify.db, request.user.sub, existing.chantier_id, 'edit');
+      }
+      const photos = await service.addPhotos(existing, request.user.sub, inputs);
+      emitToChantier(fastify.db, existing.chantier_id, {
+        type: 'emergency.created',
+        chantier_id: existing.chantier_id,
+        resource_id: id,
+        actor_id: request.user.sub,
+      }).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
+      return { emergency_id: id, photos: signUrlsInList(photos) };
+    });
+
     fastify.delete('/emergencies/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
       const { id } = uuidSchema.parse(request.params);
       const existing = await service.findById(id);

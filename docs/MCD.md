@@ -210,11 +210,12 @@ fois du meme emoji retire la reaction. **Index :** `idx_comment_reaction_comment
 | `mime_type` | varchar(50) | nullable |
 | `step_id` | uuid | nullable, FK -> `chantier_step.id` SET NULL — etape que la photo atteste |
 | `substep_id` | uuid | nullable, FK -> `chantier_substep.id` SET NULL — sous-etape attestee (son `step_id` est pose aussi) |
+| `emergency_id` | uuid | nullable, FK -> `chantier_emergency.id` CASCADE — photo d'une urgence |
 | `created_at` | timestamp | NOT NULL, default now |
 | `updated_at` | timestamp | NOT NULL, default now |
 
-Index : `idx_photo_step`, `idx_photo_substep`. Migration :
-`20261003190000_photo_step_links.js`.
+Index : `idx_photo_step`, `idx_photo_substep`, `idx_photo_emergency`. Migrations :
+`20261003190000_photo_step_links.js`, `20261004140000_emergency_photos.js`.
 
 **Index :** `idx_photo_chantier` (chantier_id, created_at)
 

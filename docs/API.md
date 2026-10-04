@@ -971,6 +971,18 @@ Urgences (manager / ouvrier / admin / createur) ou reclamations (client). Stocke
 | POST | `/emergencies` | JWT | Creer (admin / createur / manager / ouvrier / client). Le `gestionnaire_reseau` est exclu. |
 | DELETE | `/emergencies/:id` | JWT | Auteur / admin / createur / manager du chantier |
 
+### Plusieurs photos par urgence
+
+`POST /emergencies` accepte `photos: [{ url, thumbnail_url?, file_size?, mime_type? }]`
+(jusqu'a 20). Elles entrent dans la table `photo` du chantier, rattachees par
+`emergency_id`, et sont renvoyees sur chaque urgence dans `photos: [{ id, url,
+thumbnail_url, created_at }]`. L'ancienne forme a une seule `photo_url` reste
+acceptee ; `photo_url` garde toujours la premiere photo, pour les clients qui ne
+lisent pas encore `photos`. `POST /emergencies/:id/photos` en ajoute apres coup
+(auteur de l'urgence, ou droit `edit` sur le chantier). Supprimer l'urgence
+emporte ses photos. Migration `20261004140000_emergency_photos.js`, qui a repris
+les photos existantes dans la galerie.
+
 ### POST /emergencies
 
 **Body :**

@@ -245,4 +245,62 @@ describe('Urgences et membres de chantier', () => {
       expect(res.statusCode).toBe(403);
     });
   });
+
+  /**
+   * Plusieurs photos par urgence. Elles vivent dans la galerie du chantier,
+   * rattachees a l'urgence ; `photo_url` garde la premiere pour les anciens
+   * clients.
+   */
+  describe("photos d'une urgence", () => {
+    const photos = [
+      { url: 'http://localhost:3000/files/u1.jpg', thumbnail_url: 'http://localhost:3000/files/u1_thumb.jpg' },
+      { url: 'http://localhost:3000/files/u2.jpg' },
+    ];
+    const lister = () => app.inject({ method: 'GET', url: `/emergencies?chantier_id=${chantierId}`, headers: auth(admin.token) }).then((r) => r.json().data);
+
+    it('en accepte plusieurs a la creation, et la premiere devient photo_url', async () => {
+      const res = await app.inject({ method: 'POST', url: '/emergencies', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, photos } });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().photos).toHaveLength(2);
+      expect(res.json().photo_url).toContain('/files/u1.jpg');
+      const dansGalerie = await app.db('photo').where({ emergency_id: res.json().id });
+      expect(dansGalerie).toHaveLength(2);
+      expect(dansGalerie.every((p) => p.chantier_id === chantierId && p.uploaded_by === ouvrier.id)).toBe(true);
+    });
+
+    it("l'ancienne forme a une photo reste acceptee et apparait dans photos", async () => {
+      const res = await app.inject({ method: 'POST', url: '/emergencies', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, photo_url: 'http://localhost:3000/files/seule.jpg' } });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().photos).toHaveLength(1);
+      expect((await lister()).find((e: { id: string }) => e.id === res.json().id).photos).toHaveLength(1);
+    });
+
+    it("l'auteur peut en ajouter apres coup", async () => {
+      const res = await app.inject({ method: 'POST', url: `/emergencies/${emergencyId}/photos`, headers: auth(ouvrier.token), payload: { photos } });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().photos).toHaveLength(2);
+      // L'urgence n'avait pas de photo : la premiere ajoutee devient photo_url.
+      expect((await app.db('chantier_emergency').where({ id: emergencyId }).first()).photo_url).toContain('/files/u1.jpg');
+    });
+
+    it("un simple participant sans droit d'edition ne peut pas en ajouter a l'urgence d'un autre", async () => {
+      const autre = await createUser(app, { organizationId, role: 'employee' });
+      await app.inject({ method: 'POST', url: '/chantier-members', headers: auth(admin.token), payload: { chantier_id: chantierId, user_id: autre.id, role: 'ouvrier' } });
+
+      const res = await app.inject({ method: 'POST', url: `/emergencies/${emergencyId}/photos`, headers: auth(autre.token), payload: { photos } });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("supprimer l'urgence emporte ses photos", async () => {
+      const created = (await app.inject({ method: 'POST', url: '/emergencies', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, photos } })).json();
+
+      await app.inject({ method: 'DELETE', url: `/emergencies/${created.id}`, headers: auth(admin.token) });
+
+      expect(await app.db('photo').where({ emergency_id: created.id })).toHaveLength(0);
+    });
+  });
 });
