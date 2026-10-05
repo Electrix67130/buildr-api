@@ -83,7 +83,9 @@ async function uploadPlugin(fastify: FastifyInstance) {
       return reply.redirect(downloadUrl, 302);
     }
 
-    return reply.sendFile(safeName);
+    // @fastify/static pose son propre Cache-Control (public, max-age=0) qui
+    // ecraserait le notre : on le lui interdit.
+    return reply.sendFile(safeName, { cacheControl: false });
   });
 
   // POST /upload — upload a file (authenticated)

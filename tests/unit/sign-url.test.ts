@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'crypto';
-import { signFileUrl, signUrlsDeep, signUrlsIn, signUrlsInList, stripFileToken, FILE_URL_TTL_MS, SIGNING_WINDOW_MS } from '@/lib/sign-url';
+import { signFileUrl, signUrlsDeep, signUrlsIn, signUrlsInList, stripFileToken, signingWindowStart, tokenExpiry, FILE_URL_TTL_MS, SIGNING_WINDOW_MS } from '@/lib/sign-url';
 
 /**
  * Signature des URLs de fichiers.
@@ -54,6 +54,20 @@ describe('Signature des URLs de fichiers', () => {
     // Arrondie au debut de la fenetre : entre TTL - fenetre et TTL.
     expect(charge.e).toBeGreaterThan(avant + FILE_URL_TTL_MS - SIGNING_WINDOW_MS);
     expect(charge.e).toBeLessThanOrEqual(Date.now() + FILE_URL_TTL_MS);
+  });
+
+  it('aligne la fenetre de signature sur des bornes fixes', () => {
+    // Deux instants de la meme fenetre donnent le meme debut, donc la meme
+    // expiration ; la fenetre suivante decale d'exactement une fenetre.
+    const debut = signingWindowStart(1_800_000_000_000);
+    expect(debut % SIGNING_WINDOW_MS).toBe(0);
+    expect(signingWindowStart(debut)).toBe(debut);
+    expect(signingWindowStart(debut + SIGNING_WINDOW_MS - 1)).toBe(debut);
+    expect(signingWindowStart(debut + SIGNING_WINDOW_MS)).toBe(debut + SIGNING_WINDOW_MS);
+    expect(tokenExpiry(debut + 1000)).toBe(debut + FILE_URL_TTL_MS);
+    // Toujours valable au moins TTL - fenetre, meme en toute fin de fenetre.
+    const finDeFenetre = debut + SIGNING_WINDOW_MS - 1;
+    expect(tokenExpiry(finDeFenetre) - finDeFenetre).toBeGreaterThanOrEqual(FILE_URL_TTL_MS - SIGNING_WINDOW_MS);
   });
 
   it("donne la meme URL pendant toute une fenetre, pour que le cache d'images serve", () => {

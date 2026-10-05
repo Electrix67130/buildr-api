@@ -4,6 +4,9 @@ import { createTestApp, auth } from '../helpers/app';
 import { truncateAll } from '../helpers/db';
 import { createOrgWithAdmin, type TestUser } from '../helpers/factories';
 import { signFileUrl } from '@/lib/sign-url';
+import { UPLOAD_DIR } from '@/lib/storage';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Acces aux fichiers servis par /files/.
@@ -65,6 +68,25 @@ describe('Acces aux fichiers', () => {
     const res = await app.inject({ method: 'GET', url: '/files/..%2F..%2F.env?t=nimporte-quoi' });
     expect(res.statusCode).not.toBe(200);
     expect(res.body).not.toContain('DB_PASSWORD');
+  });
+
+  it("autorise le cache prive du fichier, et jamais celui d'un fichier absent", async () => {
+    // L'URL est stable six heures : le telephone et le navigateur peuvent
+    // garder l'image au lieu de la retelecharger a chaque rafraichissement.
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    const nom = 'cache-test.jpg';
+    fs.writeFileSync(path.join(UPLOAD_DIR, nom), Buffer.from('fake'));
+    try {
+      const present = await app.inject({ method: 'GET', url: cheminSigne(nom) });
+      expect(present.statusCode).toBe(200);
+      expect(present.headers['cache-control']).toBe('private, max-age=43200');
+
+      const absent = await app.inject({ method: 'GET', url: cheminSigne('fichier-absent.jpg') });
+      expect(absent.statusCode).toBe(404);
+      expect(absent.headers['cache-control'] ?? '').not.toContain('max-age=43200');
+    } finally {
+      fs.rmSync(path.join(UPLOAD_DIR, nom), { force: true });
+    }
   });
 
   it('autorise le navigateur a afficher le fichier depuis une autre origine', async () => {
