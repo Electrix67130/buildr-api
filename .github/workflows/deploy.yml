@@ -36,9 +36,39 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    # Une base PostgreSQL ephemere, aux memes coordonnees que la base de test
+    # locale (vitest.config.ts) : le global setup y applique les migrations.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: buildr_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      # Les tests ne tournaient que sur un poste : un tag pose un jour ou la
+      # base de test locale etait arretee est parti sans qu'aucun test n'ait
+      # tourne. Ici, pas de tests verts, pas de deploiement.
+      - run: npx vitest run
+
   deploy:
     name: Deploy over SSH
-    needs: check
+    needs: [check, test]
     runs-on: ubuntu-latest
     # Active seulement quand le VPS est pret et les secrets SSH renseignes :
     # Settings → Secrets and variables → Actions → Variables → DEPLOY_ENABLED=true
