@@ -29,7 +29,9 @@ export type RealtimeEventType =
    * seul : ses droits en dependent partout, il doit relire son profil et ses
    * listes sans attendre un retour au premier plan.
    */
-  | 'membership.updated';
+  | 'membership.updated'
+  /** Un signalement vient d'etre depose. Emis aux administrateurs concernes. */
+  | 'report.created';
 
 export interface RealtimeEvent {
   type: RealtimeEventType;

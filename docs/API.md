@@ -701,6 +701,43 @@ Chaque bascule emet `comment.updated` sur le canal temps reel.
 
 ---
 
+## Signalements de contenu ou de membre
+
+| Methode | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/reports` | JWT | Signaler un message, une photo ou un membre |
+| GET | `/reports` | JWT, admin de l'organisation | Les signalements de son organisation, `?status=&chantier_id=` |
+| PATCH | `/reports/:id` | JWT, admin de l'organisation ou super admin | Traiter (`resolved`) ou rejeter (`dismissed`), avec note |
+| GET | `/super-admin/reports` | JWT + super admin | Tous les signalements, `?escalated=1&organization_id=&status=` |
+
+**Body de `POST /reports` :** `{ target_type: "comment" | "photo" | "user", target_id,
+reason: "inappropriate" | "harassment" | "off_topic" | "other", comment? }`.
+
+C'est d'abord l'affaire de **l'administrateur de l'organisation** : lui connait
+l'equipe et a deja les deux leviers, supprimer le contenu ou desactiver le
+compte. Le signalement lui parvient par le canal temps reel (`report.created`)
+et par notification, dans sa langue. Regles :
+
+- Le rapporteur doit avoir acces a ce qu'il signale : participant du chantier
+  pour un message ou une photo, une organisation en commun pour un membre.
+  Sinon **404**, pour ne pas confirmer l'existence de la cible. On ne se
+  signale pas soi-meme (**400**).
+- **La personne visee ne voit jamais le signalement qui la concerne**, meme
+  administratrice, et ne peut pas le classer.
+- Si la personne visee est administratrice, le signalement est marque
+  `escalated` et remonte aussi a la console super admin : une organisation
+  peut n'avoir qu'un administrateur.
+- Idempotent : re-signaler une cible deja signalee par la meme personne et
+  encore en attente rend le signalement existant (**200**).
+- La cible est designee sans cle etrangere et son contenu est fige dans
+  `target_excerpt` : supprimer le message est souvent l'issue, et le
+  signalement doit survivre pour garder trace. `target_exists` dit si elle
+  existe encore.
+
+Reponse des listes : `{ data, meta, counts: { pending } }`, chaque ligne avec
+le nom du rapporteur, celui de la personne visee, du chantier et de
+l'organisation. Pas de blocage d'utilisateur pour l'instant.
+
 ## Signalements d'erreur
 
 | Methode | Route | Auth | Description |

@@ -525,6 +525,33 @@ gerees de l'API **et** les plantages remontes par les clients via
 
 ---
 
+## Table : `report`
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `organization_id` | uuid | NOT NULL, FK -> `organization.id` CASCADE |
+| `chantier_id` | uuid | nullable, FK -> `chantier.id` CASCADE — null pour un membre |
+| `reporter_id` | uuid | NOT NULL, FK -> `user.id` CASCADE |
+| `target_type` | varchar(20) | NOT NULL — `comment` \| `photo` \| `user` |
+| `target_id` | uuid | NOT NULL — sans FK : la cible peut etre supprimee, le signalement reste |
+| `target_user_id` | uuid | nullable, FK -> `user.id` SET NULL — personne responsable de la cible |
+| `target_excerpt` | text | nullable — contenu fige au moment du signalement |
+| `reason` | varchar(30) | NOT NULL — `inappropriate` \| `harassment` \| `off_topic` \| `other` |
+| `comment` | text | nullable |
+| `status` | varchar(20) | NOT NULL, default `pending` — `pending` \| `resolved` \| `dismissed` |
+| `escalated` | boolean | NOT NULL, default false — la personne visee est administratrice |
+| `resolved_by` | uuid | nullable, FK -> `user.id` SET NULL |
+| `resolved_at` | timestamp | nullable |
+| `resolution_note` | text | nullable |
+| `created_at` | timestamp | NOT NULL, default now |
+| `updated_at` | timestamp | NOT NULL, default now |
+
+**Index :** `idx_report_org_status` (organization_id, status), `idx_report_target`
+(target_type, target_id). **Migration :** `20261005100000_create_report.js`.
+
+---
+
 ## Table : `feedback`
 
 Signalements ecrits par les utilisateurs : bugs rencontres et suggestions de

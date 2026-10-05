@@ -33,6 +33,9 @@ interface PushStrings {
   claimReported: (actor: string) => string;
   /** Reponse du support a un signalement. */
   feedbackReply: string;
+  /** Un membre a signale un contenu ou une personne. */
+  reportTitle: string;
+  reportBody: (where: string) => string;
 }
 
 export const PUSH: Record<PushLocale, PushStrings> = {
@@ -47,6 +50,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} a signalé une urgence`,
     claimReported: (a) => `${a} a fait une réclamation`,
     feedbackReply: 'Réponse à votre signalement',
+    reportTitle: 'Signalement',
+    reportBody: (where) => `Un contenu ou un membre a été signalé sur ${where}. À examiner.`,
   },
   en: {
     memberAdded: (a) => `${a} added you to this site`,
@@ -59,6 +64,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} reported an emergency`,
     claimReported: (a) => `${a} filed a claim`,
     feedbackReply: 'Reply to your report',
+    reportTitle: 'Report',
+    reportBody: (where) => `Content or a member has been reported on ${where}. Please review.`,
   },
   de: {
     memberAdded: (a) => `${a} hat Sie zu dieser Baustelle hinzugefügt`,
@@ -71,6 +78,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} hat einen Notfall gemeldet`,
     claimReported: (a) => `${a} hat eine Reklamation eingereicht`,
     feedbackReply: 'Antwort auf Ihre Meldung',
+    reportTitle: 'Meldung',
+    reportBody: (where) => `Auf ${where} wurde ein Inhalt oder ein Mitglied gemeldet. Bitte prüfen.`,
   },
   es: {
     memberAdded: (a) => `${a} le ha añadido a esta obra`,
@@ -83,6 +92,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} ha señalado una urgencia`,
     claimReported: (a) => `${a} ha presentado una reclamación`,
     feedbackReply: 'Respuesta a su incidencia',
+    reportTitle: 'Denuncia',
+    reportBody: (where) => `Se ha denunciado un contenido o un miembro en ${where}. Por favor, revíselo.`,
   },
   it: {
     memberAdded: (a) => `${a} l'ha aggiunta a questo cantiere`,
@@ -95,6 +106,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} ha segnalato un'emergenza`,
     claimReported: (a) => `${a} ha presentato un reclamo`,
     feedbackReply: 'Risposta alla sua segnalazione',
+    reportTitle: 'Segnalazione',
+    reportBody: (where) => `Un contenuto o un membro è stato segnalato su ${where}. Da esaminare.`,
   },
   pt: {
     memberAdded: (a) => `${a} adicionou-o a esta obra`,
@@ -107,6 +120,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} comunicou uma urgência`,
     claimReported: (a) => `${a} apresentou uma reclamação`,
     feedbackReply: 'Resposta à sua comunicação',
+    reportTitle: 'Denúncia',
+    reportBody: (where) => `Um conteúdo ou um membro foi denunciado em ${where}. Por favor, verifique.`,
   },
   tr: {
     memberAdded: (a) => `${a} sizi bu şantiyeye ekledi`,
@@ -119,6 +134,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} bir acil durum bildirdi`,
     claimReported: (a) => `${a} bir şikâyet iletti`,
     feedbackReply: 'Bildiriminize yanıt',
+    reportTitle: 'Bildirim',
+    reportBody: (where) => `${where} üzerinde bir içerik veya üye bildirildi. Lütfen inceleyin.`,
   },
   pl: {
     // Le polonais accorde ses participes au genre de la personne. Plutot que de
@@ -134,6 +151,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     emergencyReported: (a) => `${a} — zgłoszono nagły wypadek`,
     claimReported: (a) => `${a} — złożono reklamację`,
     feedbackReply: 'Odpowiedź na Twoje zgłoszenie',
+    reportTitle: 'Zgłoszenie',
+    reportBody: (where) => `Na ${where} zgłoszono treść lub członka. Prosimy o sprawdzenie.`,
   },
 };
 
@@ -277,4 +296,13 @@ export function buildFeedbackReplyPush(params: {
     body: `${truncate(params.subject, 40)} — ${truncate(params.response, 90)}`,
     data: { type: 'feedback', feedback_id: params.feedbackId },
   };
+}
+
+/** Un signalement a traiter. Pas de nom : l'administrateur verra le detail dans le dashboard. */
+export function reportPush(params: { where: string; reportId: string }) {
+  return (locale: string): PushPayload => ({
+    title: `🚩 ${strings(locale).reportTitle}`,
+    body: strings(locale).reportBody(params.where),
+    data: { type: 'report', report_id: params.reportId },
+  });
 }
