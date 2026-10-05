@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Ce qu'on peut signaler. */
-export const REPORT_TARGETS = ['comment', 'photo', 'user'] as const;
+export const REPORT_TARGETS = ['comment', 'emergency_comment', 'photo', 'user'] as const;
 /** Pourquoi. Une liste fermee : les motifs se comptent et se traduisent. */
 export const REPORT_REASONS = ['inappropriate', 'harassment', 'off_topic', 'other'] as const;
 /** Cycle de vie : en attente, traite (on a agi), rejete (rien a redire). */

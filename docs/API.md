@@ -710,7 +710,7 @@ Chaque bascule emet `comment.updated` sur le canal temps reel.
 | PATCH | `/reports/:id` | JWT, admin de l'organisation ou super admin | Traiter (`resolved`) ou rejeter (`dismissed`), avec note |
 | GET | `/super-admin/reports` | JWT + super admin | Tous les signalements, `?escalated=1&organization_id=&status=` |
 
-**Body de `POST /reports` :** `{ target_type: "comment" | "photo" | "user", target_id,
+**Body de `POST /reports` :** `{ target_type: "comment" | "emergency_comment" | "photo" | "user", target_id,
 reason: "inappropriate" | "harassment" | "off_topic" | "other", comment? }`.
 
 C'est d'abord l'affaire de **l'administrateur de l'organisation** : lui connait

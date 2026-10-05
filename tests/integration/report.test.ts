@@ -116,6 +116,20 @@ describe('Signalements', () => {
       expect(res.statusCode).toBe(404);
     });
 
+    it("un message du fil d'une urgence : par un participant, avec son extrait", async () => {
+      const urgence = (await app.inject({ method: 'POST', url: '/emergencies', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, description: 'Fuite' } })).json();
+      const msg = (await app.inject({ method: 'POST', url: '/emergency-comments', headers: auth(ouvrier.token), payload: { emergency_id: urgence.id, content: 'Propos deplaces' } })).json();
+
+      const res = await signaler(autre.token, { target_type: 'emergency_comment', target_id: msg.id });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({ target_user_id: ouvrier.id, chantier_id: chantierId, target_excerpt: 'Propos deplaces' });
+      // Desactiver le compte emporte ce message signale.
+      await app.inject({ method: 'PATCH', url: `/users/${ouvrier.id}`, headers: auth(admin.token), payload: { is_active: false } });
+      expect(await app.db('emergency_comment').where({ id: msg.id }).first()).toBeUndefined();
+      expect((await lister(admin.token, '?status=resolved')).json().data[0].target_exists).toBe(false);
+    });
+
     it("refuse de se signaler soi-meme", async () => {
       expect((await signaler(ouvrier.token, { target_type: 'comment', target_id: messageId })).statusCode).toBe(400);
     });

@@ -43,6 +43,21 @@ class ReportService extends BaseService<ReportRow> {
         excerpt: String(row.content).slice(0, 300),
       };
     }
+    if (data.target_type === 'emergency_comment') {
+      const row = await this.db('emergency_comment')
+        .join('chantier_emergency', 'chantier_emergency.id', 'emergency_comment.emergency_id')
+        .join('chantier', 'chantier.id', 'chantier_emergency.chantier_id')
+        .where('emergency_comment.id', data.target_id)
+        .select('chantier.id as chantier_id', 'chantier.organization_id', 'emergency_comment.author_id', 'emergency_comment.content')
+        .first();
+      if (!row || !(await isChantierParticipant(this.db, reporterId, row.chantier_id))) return null;
+      return {
+        organization_id: row.organization_id,
+        chantier_id: row.chantier_id,
+        target_user_id: row.author_id,
+        excerpt: String(row.content).slice(0, 300),
+      };
+    }
     if (data.target_type === 'photo') {
       const row = await this.db('photo')
         .join('chantier', 'chantier.id', 'photo.chantier_id')
@@ -170,7 +185,7 @@ class ReportService extends BaseService<ReportRow> {
   /** Un message ou une photo signale a-t-il deja ete supprime ? */
   private async targetsStillExist(rows: { id: string; target_type: string; target_id: string }[]): Promise<Map<string, boolean>> {
     const map = new Map<string, boolean>();
-    for (const type of ['comment', 'photo'] as const) {
+    for (const type of ['comment', 'emergency_comment', 'photo'] as const) {
       const ids = rows.filter((r) => r.target_type === type).map((r) => r.target_id);
       if (ids.length === 0) continue;
       const found = new Set(((await this.db(type).whereIn('id', ids).select('id')) as { id: string }[]).map((r) => r.id));

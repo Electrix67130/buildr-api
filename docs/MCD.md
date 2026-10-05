@@ -547,7 +547,7 @@ gerees de l'API **et** les plantages remontes par les clients via
 | `organization_id` | uuid | NOT NULL, FK -> `organization.id` CASCADE |
 | `chantier_id` | uuid | nullable, FK -> `chantier.id` CASCADE — null pour un membre |
 | `reporter_id` | uuid | NOT NULL, FK -> `user.id` CASCADE |
-| `target_type` | varchar(20) | NOT NULL — `comment` \| `photo` \| `user` |
+| `target_type` | varchar(20) | NOT NULL — `comment` \| `emergency_comment` \| `photo` \| `user` |
 | `target_id` | uuid | NOT NULL — sans FK : la cible peut etre supprimee, le signalement reste |
 | `target_user_id` | uuid | nullable, FK -> `user.id` SET NULL — personne responsable de la cible |
 | `target_excerpt` | text | nullable — contenu fige au moment du signalement |
