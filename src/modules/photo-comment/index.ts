@@ -18,7 +18,7 @@ export default fp(
     // GET /photo-comments?photo_id=xxx
     fastify.get('/photo-comments', { preHandler: [fastify.authenticate] }, async (request) => {
       const { photo_id, ...pagination } = byPhotoSchema.parse(request.query);
-      return service.findByPhoto(photo_id, pagination);
+      return service.findByPhoto(photo_id, pagination, request.user.sub);
     });
 
     // POST /photo-comments

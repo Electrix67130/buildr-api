@@ -85,4 +85,50 @@ describe('Blocage', () => {
     expect((await bloquer(autre.token, ouvrier.id)).statusCode).toBe(201);
     expect(await app.db('user_block').where({ blocker_id: autre.id })).toHaveLength(1);
   });
+
+  describe("fil d'une urgence", () => {
+    let urgenceId: string;
+    const fil = (token: string) =>
+      app.inject({ method: 'GET', url: `/emergency-comments?emergency_id=${urgenceId}`, headers: auth(token) });
+
+    beforeEach(async () => {
+      urgenceId = (await app.inject({ method: 'POST', url: '/emergencies', headers: auth(admin.token), payload: { chantier_id: chantierId, description: 'Fuite de gaz' } })).json().id;
+      for (const [token, content] of [[ouvrier.token, "Reponse de l'ouvrier"], [admin.token, "Reponse de l'admin"]] as const) {
+        const res = await app.inject({ method: 'POST', url: '/emergency-comments', headers: auth(token), payload: { emergency_id: urgenceId, content } });
+        expect(res.statusCode).toBe(201);
+      }
+    });
+
+    it('masque les reponses de la personne bloquee, pour moi seulement', async () => {
+      await bloquer(autre.token, ouvrier.id);
+
+      const pourMoi = await fil(autre.token);
+      expect(pourMoi.statusCode).toBe(200);
+      expect(pourMoi.json().data.map((c: { content: string }) => c.content)).toEqual(["Reponse de l'admin"]);
+      expect(pourMoi.json().meta.total).toBe(1);
+      expect((await fil(admin.token)).json().data).toHaveLength(2);
+      // La personne bloquee n'en sait rien : elle voit tout le fil.
+      expect((await fil(ouvrier.token)).json().data).toHaveLength(2);
+    });
+
+    it('debloquer rend les reponses', async () => {
+      await bloquer(autre.token, ouvrier.id);
+      await app.inject({ method: 'DELETE', url: `/blocks/${ouvrier.id}`, headers: auth(autre.token) });
+
+      expect((await fil(autre.token)).json().data).toHaveLength(2);
+    });
+  });
+
+  // Une reponse d'un tiers a un message de la personne bloquee ne doit pas
+  // embarquer la citation : le contenu bloque reviendrait par ce biais.
+  it("ne laisse pas revenir un message bloque par la citation d'un tiers", async () => {
+    const [cible] = (await app.inject({ method: 'GET', url: `/comments?chantier_id=${chantierId}`, headers: auth(admin.token) })).json().data
+      .filter((c: { content: string }) => c.content === 'Message de l ouvrier');
+    await app.inject({ method: 'POST', url: '/comments', headers: auth(admin.token), payload: { chantier_id: chantierId, content: 'Je reponds', reply_to_id: cible.id } });
+    await bloquer(autre.token, ouvrier.id);
+
+    const reponse = (await messages(autre.token)).find((m) => m.content === 'Je reponds') as unknown as { reply_to: { content: string } | null };
+
+    expect(reponse.reply_to?.content).not.toBe('Message de l ouvrier');
+  });
 });

@@ -295,6 +295,29 @@ describe('Urgences et membres de chantier', () => {
       expect(res.statusCode).toBe(403);
     });
 
+    it("un participant a qui l'on a ouvert le droit de modifier en ajoute a l'urgence d'un autre", async () => {
+      const editeur = await createUser(app, { organizationId, role: 'employee' });
+      await app.inject({ method: 'POST', url: '/chantier-members', headers: auth(admin.token), payload: { chantier_id: chantierId, user_id: editeur.id, role: 'ouvrier', can_edit: true } });
+
+      const res = await app.inject({ method: 'POST', url: `/emergencies/${emergencyId}/photos`, headers: auth(editeur.token), payload: { photos } });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().emergency_id).toBe(emergencyId);
+      const rangees = await app.db('photo').where({ emergency_id: emergencyId });
+      expect(rangees).toHaveLength(2);
+      // Chaque photo est attribuee a celui qui l'a ajoutee, pas a l'auteur de l'urgence.
+      expect(rangees.every((p) => p.uploaded_by === editeur.id && p.chantier_id === chantierId)).toBe(true);
+      const liste = await lister();
+      expect(liste.find((e: { id: string }) => e.id === emergencyId).photos).toHaveLength(2);
+    });
+
+    it("l'administrateur d'une autre organisation n'en ajoute pas", async () => {
+      const res = await app.inject({ method: 'POST', url: `/emergencies/${emergencyId}/photos`, headers: auth(beta.admin.token), payload: { photos } });
+
+      expect([403, 404]).toContain(res.statusCode);
+      expect(await app.db('photo').where({ emergency_id: emergencyId })).toHaveLength(0);
+    });
+
     it("la galerie du chantier ne les montre pas", async () => {
       await app.inject({ method: 'POST', url: '/emergencies', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, photos } });
       await app.inject({ method: 'POST', url: '/photos', headers: auth(admin.token), payload: { chantier_id: chantierId, url: 'http://localhost:3000/files/chantier.jpg' } });

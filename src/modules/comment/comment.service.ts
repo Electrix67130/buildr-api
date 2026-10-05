@@ -45,7 +45,7 @@ class CommentService extends BaseService<CommentRow> {
     ]);
 
     const [replies, reactions] = await Promise.all([
-      this.repliesFor(items.map((c) => c.reply_to_id).filter((id): id is string => !!id)),
+      this.repliesFor(items.map((c) => c.reply_to_id).filter((id): id is string => !!id), blocked),
       this.reactionsFor(items.map((c) => c.id), viewerId),
     ]);
 
@@ -59,13 +59,20 @@ class CommentService extends BaseService<CommentRow> {
     };
   }
 
-  /** Les messages cites, en une requete. */
-  private async repliesFor(ids: string[]): Promise<Map<string, CommentReplyPreview>> {
+  /**
+   * Les messages cites, en une requete. Ceux d'une personne bloquee sont
+   * omis : la reponse d'un tiers s'affiche alors sans citation, sinon le
+   * contenu bloque reviendrait par ce biais.
+   */
+  private async repliesFor(ids: string[], blocked: string[] = []): Promise<Map<string, CommentReplyPreview>> {
     const map = new Map<string, CommentReplyPreview>();
     if (ids.length === 0) return map;
     const rows = (await this.db(this.table)
       .join('user', 'comment.author_id', 'user.id')
       .whereIn('comment.id', [...new Set(ids)])
+      .modify((qb) => {
+        if (blocked.length > 0) qb.whereNotIn('comment.author_id', blocked);
+      })
       .select('comment.id', 'comment.content', 'comment.author_id', 'user.first_name', 'user.last_name')) as CommentReplyPreview[];
     for (const r of rows) map.set(r.id, r);
     return map;

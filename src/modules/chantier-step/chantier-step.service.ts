@@ -61,7 +61,7 @@ class ChantierStepService extends BaseService<ChantierStepRow> {
       const existing = (await trx('chantier_step').where({ chantier_id: chantierId }).select('id')) as { id: string }[];
       const existingSet = new Set(existing.map((r) => r.id));
       for (const id of orderedIds) {
-        if (!existingSet.has(id)) throw new Error(`Step ${id} does not belong to chantier ${chantierId}`);
+        if (!existingSet.has(id)) throw Object.assign(new Error(`Step ${id} does not belong to chantier ${chantierId}`), { statusCode: 400 });
       }
       for (let i = 0; i < orderedIds.length; i++) {
         await trx('chantier_step').where({ id: orderedIds[i] }).update({ position: i, updated_at: trx.fn.now() });
@@ -107,7 +107,7 @@ export class ChantierSubstepService extends BaseService<ChantierSubstepRow> {
       const existing = (await trx('chantier_substep').where({ step_id: stepId }).select('id')) as { id: string }[];
       const existingSet = new Set(existing.map((r) => r.id));
       for (const id of orderedIds) {
-        if (!existingSet.has(id)) throw new Error(`Substep ${id} does not belong to step ${stepId}`);
+        if (!existingSet.has(id)) throw Object.assign(new Error(`Substep ${id} does not belong to step ${stepId}`), { statusCode: 400 });
       }
       for (let i = 0; i < orderedIds.length; i++) {
         await trx('chantier_substep').where({ id: orderedIds[i] }).update({ position: i, updated_at: trx.fn.now() });

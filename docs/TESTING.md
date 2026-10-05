@@ -1,6 +1,6 @@
 # Tests
 
-519 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+573 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 
@@ -48,13 +48,13 @@ l'etage integration.
 | `files.test.ts` | Acces aux fichiers : la seule route sans cle d'API, protegee par le seul jeton signe |
 | `feedback.test.ts` | Signalements : depot, cloisonnement auteur/support, reponse, notification a l'auteur |
 | `push.test.ts` | Envoi des notifications : une langue par destinataire, exclusion de l'acteur, refus des notifications |
-| `block.test.ts` | Blocage : messages et photos caches a celui qui bloque seulement, deblocage, profil |
+| `block.test.ts` | Blocage : messages, photos et fil des urgences caches a celui qui bloque seulement, deblocage, profil |
 | `report.test.ts` | Signalements : cible visible du rapporteur, personne visee jamais destinataire, remontee a la console, traitement |
-| `comment.test.ts` | Discussions : citation d'un message du meme chantier, reactions comptees par emoji, interrupteur, droits |
+| `comment.test.ts` | Discussions : citation d'un message du meme chantier, reactions comptees par emoji, interrupteur, droits, fil general |
 | `chantier-permissions.test.ts` | Droits fins au sein d'un chantier : un drapeau ouvre une ressource et une seule |
 | `team.test.ts` | Equipes : composition, consultation, cloisonnement entre organisations |
 | `super-admin.test.ts` | Console Buildr : garde sur chaque route, usurpation d'identite, coupure de compte, journal d'audit |
-| `chantier-step.test.ts` | Etapes et sous-etapes : composition, validation, ordre, cloisonnement |
+| `chantier-step.test.ts` | Etapes et sous-etapes : composition, validation, ordre (etapes et sous-etapes, droits), cloisonnement |
 | `emergency.test.ts` | Urgences, fil de discussion, et gestion des membres d'un chantier |
 
 Ces axes ont ete choisis parce qu'ils partagent une propriete : leurs defauts ne
@@ -91,6 +91,15 @@ envoyer un e-mail reel.
   interceptant `fetch` (`push.test.ts`, `feedback.test.ts`) : c'est le seul moyen
   de verifier un envoi declenche en arriere-plan sans appeler vraiment l'API
   d'Expo.
+- Les fermetures de session et les evenements temps reel s'observent en
+  inscrivant de fausses sockets dans le hub (`addConnection` de
+  `@/lib/realtime-hub`) : `close` et `send` y sont des espions. Le hub est le
+  meme module que celui de l'application, aucune vraie WebSocket n'est ouverte
+  (`auth.test.ts`, `comment.test.ts`). Penser a les retirer avec
+  `removeConnection` en fin de test.
+- Un defaut connu, non corrige, s'ecrit en `it.fails` avec un commentaire
+  « DEFAUT CONNU » : le test passe tant que le defaut existe et devient rouge le
+  jour ou il est corrige — il faut alors retirer `.fails`.
 - Les notifications partent en arriere-plan, detachees de la reponse HTTP. Une
   notification declenchee par la preparation d'un test peut donc atterrir pendant
   le test lui-meme : `push.test.ts` filtre les messages sur leur type plutot que

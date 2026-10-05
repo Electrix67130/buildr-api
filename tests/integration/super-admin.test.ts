@@ -318,4 +318,42 @@ describe('Console super admin', () => {
       expect(res.data.map((u: { id: string }) => u.id)).toEqual([superAdmin.id]);
     });
   });
+
+  describe('signalements dans la console', () => {
+    const signaler = (token: string, payload: Record<string, unknown>) =>
+      app.inject({ method: 'POST', url: '/reports', headers: auth(token), payload: { reason: 'harassment', ...payload } });
+    const consoleReports = (query = '', token = superAdmin.token) =>
+      app.inject({ method: 'GET', url: `/super-admin/reports${query}`, headers: auth(token) });
+
+    it('sans filtre, liste tous les signalements de toutes les organisations, remontes ou non', async () => {
+      const beta = await createOrgWithAdmin(app, 'Beta BTP');
+      const betaOuvrier = await createUser(app, { organizationId: beta.organizationId, role: 'employee' });
+      // Contre un administrateur : remonte a la console.
+      const remonte = (await signaler(ouvrier.token, { target_type: 'user', target_id: admin.id })).json();
+      // Contre un simple membre : reste a l'organisation.
+      const betaCollegue = await createUser(app, { organizationId: beta.organizationId, role: 'employee' });
+      const local = (await signaler(betaOuvrier.token, { target_type: 'user', target_id: betaCollegue.id })).json();
+      expect(remonte.escalated).toBe(true);
+      expect(local.escalated).toBe(false);
+
+      const res = await consoleReports();
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.map((r: { id: string }) => r.id).sort()).toEqual([remonte.id, local.id].sort());
+      expect(res.json().meta.total).toBe(2);
+      expect(res.json().counts.pending).toBe(2);
+      const noms = res.json().data.map((r: { organization_name: string }) => r.organization_name).sort();
+      expect(noms).toEqual(['Alpha TP', 'Beta BTP']);
+
+      const remontes = await consoleReports('?escalated=1');
+      expect(remontes.json().data.map((r: { id: string }) => r.id)).toEqual([remonte.id]);
+
+      const parOrganisation = await consoleReports(`?organization_id=${beta.organizationId}`);
+      expect(parOrganisation.json().data.map((r: { id: string }) => r.id)).toEqual([local.id]);
+    });
+
+    it("reste fermee a un administrateur d'organisation", async () => {
+      expect((await consoleReports('', admin.token)).statusCode).toBe(403);
+    });
+  });
 });

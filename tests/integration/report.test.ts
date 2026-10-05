@@ -83,6 +83,39 @@ describe('Signalements', () => {
       expect(res.json().target_excerpt).toBe('Photo douteuse');
     });
 
+    it("une photo d'urgence : par un participant du chantier, rattachee au chantier", async () => {
+      // Les photos d'une urgence ne sont pas dans la galerie, mais elles
+      // restent des photos : on doit pouvoir les signaler depuis l'urgence.
+      const urgence = (await app.inject({
+        method: 'POST',
+        url: '/emergencies',
+        headers: auth(ouvrier.token),
+        payload: { chantier_id: chantierId, description: 'Fuite', photos: [{ url: 'http://localhost:3000/files/u.jpg' }] },
+      })).json();
+      const photoId = urgence.photos[0].id as string;
+
+      const res = await signaler(autre.token, { target_type: 'photo', target_id: photoId, reason: 'off_topic' });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({ target_type: 'photo', target_id: photoId, target_user_id: ouvrier.id, chantier_id: chantierId });
+      const liste = (await lister(admin.token)).json().data;
+      expect(liste.map((r: { target_id: string }) => r.target_id)).toContain(photoId);
+    });
+
+    it("une photo d'urgence d'un chantier dont on n'est pas participant n'est pas confirmee", async () => {
+      const autreChantier = (await app.inject({ method: 'POST', url: '/chantiers', headers: auth(admin.token), payload: { name: 'Autre' } })).json().id;
+      const urgence = (await app.inject({
+        method: 'POST',
+        url: '/emergencies',
+        headers: auth(admin.token),
+        payload: { chantier_id: autreChantier, photos: [{ url: 'http://localhost:3000/files/v.jpg' }] },
+      })).json();
+
+      const res = await signaler(ouvrier.token, { target_type: 'photo', target_id: urgence.photos[0].id });
+
+      expect(res.statusCode).toBe(404);
+    });
+
     it("refuse de se signaler soi-meme", async () => {
       expect((await signaler(ouvrier.token, { target_type: 'comment', target_id: messageId })).statusCode).toBe(400);
     });

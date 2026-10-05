@@ -10,6 +10,7 @@ import {
   photoAddedPush,
   emergencyPush,
   commentPush,
+  reportPush,
 } from '@/lib/push-i18n';
 
 /**
@@ -217,5 +218,35 @@ describe('Reponse a un signalement', () => {
 
     expect(push.body.length).toBeLessThan(140);
     expect(push.body).toContain('…');
+  });
+});
+
+describe('Signalement a examiner', () => {
+  // Cette notification part aux administrateurs, chacun dans sa langue. Elle ne
+  // nomme personne : ni le rapporteur ni la personne visee ne doivent etre lus
+  // sur un ecran verrouille. Seul le lieu du signalement y figure.
+  const construire = reportPush({ where: 'Pont de la Loire', reportId: 'r-1' });
+
+  it.each(PUSH_LOCALES)('a un titre et un corps en %s', (langue) => {
+    expect(PUSH[langue].reportTitle.trim()).not.toBe('');
+    expect(PUSH[langue].reportBody('Pont de la Loire')).toContain('Pont de la Loire');
+
+    const push = construire(langue);
+    expect(push.title).toContain(PUSH[langue].reportTitle);
+    expect(push.body.trim()).not.toBe('');
+    expect(push.body).toContain('Pont de la Loire');
+    expect(push.body).not.toContain('undefined');
+    expect(push.data).toEqual({ type: 'report', report_id: 'r-1' });
+  });
+
+  it.each(PUSH_LOCALES.filter((l) => l !== 'fr'))('le %s est traduit, pas recopie du francais', (langue) => {
+    expect(PUSH[langue].reportTitle).not.toBe(PUSH.fr.reportTitle);
+    expect(construire(langue).body).not.toBe(construire('fr').body);
+  });
+
+  it('retombe sur le francais pour une langue inconnue', () => {
+    for (const inconnue of ['zz', '', 'FR']) {
+      expect(construire(inconnue)).toEqual(construire('fr'));
+    }
   });
 });

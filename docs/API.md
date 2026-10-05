@@ -747,8 +747,9 @@ l'organisation. Pas de blocage d'utilisateur pour l'instant.
 | DELETE | `/blocks/:userId` | JWT | Debloquer |
 
 Personnel et silencieux : les **messages** (discussions de chantier et
-d'etape, fil d'une urgence) et les **photos** de la personne bloquee ne sont
-plus servis a celui qui bloque, et a lui seul. Elle n'est pas prevenue, reste
+d'etape, fil d'une urgence, commentaires de photos), les **citations** de ses
+messages dans les reponses d'autrui, et les **photos** de la personne bloquee
+ne sont plus servis a celui qui bloque, et a lui seul. Elle n'est pas prevenue, reste
 dans l'equipe et continue de travailler. Les photos d'etape et d'urgence, qui
 documentent le chantier, restent visibles. `GET /auth/me` porte
 `blocked_user_ids` pour que les clients filtrent aussi ce qu'ils ont en cache.

@@ -247,6 +247,123 @@ describe('Etapes de chantier', () => {
     });
   });
 
+  describe('ordre : cas complementaires', () => {
+    const reordonnerEtapes = (token: string, ordered_ids: string[], chantier = chantierId) =>
+      app.inject({
+        method: 'POST',
+        url: `/chantiers/${chantier}/steps/reorder`,
+        headers: auth(token),
+        payload: { ordered_ids },
+      });
+
+    const reordonnerSousEtapes = (token: string, ordered_ids: string[], step = stepId) =>
+      app.inject({
+        method: 'POST',
+        url: `/chantier-steps/${step}/substeps/reorder`,
+        headers: auth(token),
+        payload: { ordered_ids },
+      });
+
+    const creerSousEtape = async (name: string, step = stepId) =>
+      (await app.inject({ method: 'POST', url: '/chantier-substeps', headers: auth(admin.token), payload: { step_id: step, name } })).json()
+        .id as string;
+
+    const nomsEtapes = async () =>
+      (await app.inject({ method: 'GET', url: `/chantiers/${chantierId}/steps`, headers: auth(admin.token) }))
+        .json()
+        .map((s: { name: string }) => s.name);
+
+    const nomsSousEtapes = async () =>
+      (await app.inject({ method: 'GET', url: `/chantiers/${chantierId}/steps`, headers: auth(admin.token) }))
+        .json()
+        .find((s: { id: string }) => s.id === stepId)
+        .substeps.map((s: { name: string }) => s.name);
+
+    it('les sous-etapes se reordonnent, et l ordre est conserve', async () => {
+      const coffrage = await creerSousEtape('Coffrage');
+      const ferraillage = await creerSousEtape('Ferraillage');
+      const coulage = await creerSousEtape('Coulage');
+
+      const res = await reordonnerSousEtapes(admin.token, [coulage, coffrage, ferraillage]);
+
+      expect(res.statusCode).toBe(204);
+      expect(await nomsSousEtapes()).toEqual(['Coulage', 'Coffrage', 'Ferraillage']);
+    });
+
+    it('le chef de chantier reordonne les etapes et les sous-etapes', async () => {
+      const deuxieme = (await creerEtape(admin.token, 'Elevation')).json().id as string;
+      const a = await creerSousEtape('A');
+      const b = await creerSousEtape('B');
+
+      expect((await reordonnerEtapes(chef.token, [deuxieme, stepId])).statusCode).toBe(204);
+      expect((await reordonnerSousEtapes(chef.token, [b, a])).statusCode).toBe(204);
+      expect(await nomsEtapes()).toEqual(['Elevation', 'Fondations']);
+      expect(await nomsSousEtapes()).toEqual(['B', 'A']);
+    });
+
+    it("un ouvrier a qui l'on a ouvert le droit de modifier reordonne", async () => {
+      await app.db('chantier_member').where({ chantier_id: chantierId, user_id: ouvrier.id }).update({ can_edit: true });
+      const deuxieme = (await creerEtape(admin.token, 'Elevation')).json().id as string;
+
+      expect((await reordonnerEtapes(ouvrier.token, [deuxieme, stepId])).statusCode).toBe(204);
+    });
+
+    it("un client ne reordonne ni les etapes ni les sous-etapes, et rien ne bouge", async () => {
+      const deuxieme = (await creerEtape(admin.token, 'Elevation')).json().id as string;
+      const a = await creerSousEtape('A');
+      const b = await creerSousEtape('B');
+
+      expect((await reordonnerEtapes(client.token, [deuxieme, stepId])).statusCode).toBe(403);
+      expect((await reordonnerSousEtapes(client.token, [b, a])).statusCode).toBe(403);
+      expect(await nomsEtapes()).toEqual(['Fondations', 'Elevation']);
+      expect(await nomsSousEtapes()).toEqual(['A', 'B']);
+    });
+
+    it('un ouvrier ne reordonne pas les sous-etapes', async () => {
+      const a = await creerSousEtape('A');
+      const b = await creerSousEtape('B');
+
+      expect((await reordonnerSousEtapes(ouvrier.token, [b, a])).statusCode).toBe(403);
+    });
+
+    it("refuse une etape d'un autre chantier dans la liste, sans rien deplacer", async () => {
+      const autre = await app.inject({ method: 'POST', url: '/chantiers', headers: auth(admin.token), payload: { name: 'Autre' } });
+      const etrangere = (
+        await app.inject({
+          method: 'POST',
+          url: '/chantier-steps',
+          headers: auth(admin.token),
+          payload: { chantier_id: autre.json().id, name: 'Etrangere' },
+        })
+      ).json().id as string;
+      const avant = (await app.db('chantier_step').where({ id: etrangere }).first()).position;
+
+      const res = await reordonnerEtapes(admin.token, [etrangere, stepId]);
+
+      // Le service leve une erreur nue, que le gestionnaire global rend en 500.
+      // Un 400 serait plus juste ; ce qui compte ici est que rien ne bouge.
+      expect(res.statusCode).toBe(400);
+      expect((await app.db('chantier_step').where({ id: etrangere }).first()).position).toBe(avant);
+    });
+
+    it("refuse une sous-etape d'une autre etape, sans rien deplacer", async () => {
+      const autreEtape = (await creerEtape(admin.token, 'Elevation')).json().id as string;
+      const etrangere = await creerSousEtape('Etrangere', autreEtape);
+      const a = await creerSousEtape('A');
+      const avant = (await app.db('chantier_substep').where({ id: etrangere }).first()).position;
+
+      const res = await reordonnerSousEtapes(admin.token, [etrangere, a]);
+
+      expect(res.statusCode).toBe(400);
+      expect((await app.db('chantier_substep').where({ id: etrangere }).first()).position).toBe(avant);
+    });
+
+    it('renvoie 404 pour les sous-etapes d une etape inexistante', async () => {
+      const res = await reordonnerSousEtapes(admin.token, [stepId], '00000000-0000-0000-0000-000000000000');
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
   describe('cloisonnement entre organisations', () => {
     let beta: { organizationId: string; admin: TestUser };
 

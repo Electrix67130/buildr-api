@@ -245,5 +245,62 @@ describe('Permissions par chantier', () => {
       const jeton = JSON.parse(Buffer.from(new URL(servie).searchParams.get('t')!, 'base64url').toString());
       expect(jeton.e).toBeGreaterThan(Date.now());
     });
+
+    /** Une URL signee il y a deux jours, telle que l'app peut la renvoyer. */
+    const perimee = (fichier: string) =>
+      `http://localhost:3000/files/${fichier}?t=${Buffer.from(JSON.stringify({ f: fichier, e: Date.now() - 1000, s: 'x' })).toString('base64url')}`;
+
+    /** Verifie qu'une URL servie porte un jeton neuf pour le bon fichier. */
+    const jetonFrais = (servie: string, fichier: string) => {
+      const url = new URL(servie);
+      expect(url.pathname).toBe(`/files/${fichier}`);
+      const jeton = JSON.parse(Buffer.from(url.searchParams.get('t')!, 'base64url').toString());
+      expect(jeton.e).toBeGreaterThan(Date.now());
+    };
+
+    it('pour les documents : stocke nu, sert un jeton frais', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/documents',
+        headers: auth(admin.token),
+        payload: { chantier_id: chantierId, name: 'Devis.pdf', type: 'autre', url: perimee('devis.pdf') },
+      });
+      expect(res.statusCode).toBe(201);
+      expect((await app.db('document').where({ id: res.json().id }).first()).url).toBe('http://localhost:3000/files/devis.pdf');
+
+      const liste = await app.inject({ method: 'GET', url: `/documents?chantier_id=${chantierId}`, headers: auth(admin.token) });
+
+      expect(liste.statusCode).toBe(200);
+      jetonFrais(liste.json().data.find((d: { id: string }) => d.id === res.json().id).url, 'devis.pdf');
+    });
+
+    it("pour les urgences : photo principale, photos et miniatures stockees nues, servies avec un jeton frais", async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emergencies',
+        headers: auth(admin.token),
+        payload: {
+          chantier_id: chantierId,
+          description: 'Fuite',
+          photos: [{ url: perimee('u1.jpg'), thumbnail_url: perimee('u1_thumb.jpg') }, { url: perimee('u2.jpg') }],
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const id = res.json().id as string;
+      expect((await app.db('chantier_emergency').where({ id }).first()).photo_url).toBe('http://localhost:3000/files/u1.jpg');
+      const rangees = await app.db('photo').where({ emergency_id: id }).orderBy('url');
+      expect(rangees.map((p) => p.url)).toEqual(['http://localhost:3000/files/u1.jpg', 'http://localhost:3000/files/u2.jpg']);
+      expect(rangees[0].thumbnail_url).toBe('http://localhost:3000/files/u1_thumb.jpg');
+
+      const liste = await app.inject({ method: 'GET', url: `/emergencies?chantier_id=${chantierId}`, headers: auth(admin.token) });
+
+      expect(liste.statusCode).toBe(200);
+      const urgence = liste.json().data.find((e: { id: string }) => e.id === id);
+      jetonFrais(urgence.photo_url, 'u1.jpg');
+      const servies = [...urgence.photos].sort((a: { url: string }, b: { url: string }) => a.url.localeCompare(b.url));
+      jetonFrais(servies[0].url, 'u1.jpg');
+      jetonFrais(servies[0].thumbnail_url, 'u1_thumb.jpg');
+      jetonFrais(servies[1].url, 'u2.jpg');
+    });
   });
 });

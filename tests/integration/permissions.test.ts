@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createTestApp, auth } from '../helpers/app';
 import { truncateAll } from '../helpers/db';
-import { createOrgWithAdmin, createUser, login, type TestUser } from '../helpers/factories';
+import { createOrgWithAdmin, createUser, login, TEST_PASSWORD, type TestUser } from '../helpers/factories';
 
 /**
  * Droits par role, a l'interieur d'une meme organisation.
@@ -189,6 +189,58 @@ describe('Droits par role', () => {
       expect(await app.db('photo').where({ id: photo.id }).first()).toBeTruthy();
       const liste = await app.inject({ method: 'GET', url: `/comments?chantier_id=${chantier.id}`, headers: auth(admin.token) });
       expect(liste.json().data[0].first_name).toBe('Compte');
+    });
+
+    describe('par soi-meme', () => {
+      const connecterMobile = async (email: string) =>
+        (await app.inject({ method: 'POST', url: '/auth/login', payload: { email, password: TEST_PASSWORD, platform: 'mobile' } })).json() as {
+          access_token: string;
+          refresh_token: string;
+        };
+      const supprimerMonCompte = (token: string, password: string) =>
+        app.inject({ method: 'DELETE', url: '/users/me', headers: auth(token), payload: { password } });
+      const statutMe = (token: string) =>
+        app.inject({ method: 'GET', url: '/auth/me', headers: auth(token) }).then((r) => r.statusCode);
+
+      it("depuis le mobile, coupe aussi la session restee ouverte sur le dashboard", async () => {
+        // `employee.token` vient d'une connexion web : c'est le dashboard laisse
+        // ouvert au bureau pendant qu'on supprime son compte depuis le telephone.
+        const mobile = await connecterMobile(employee.email);
+        expect(await statutMe(employee.token)).toBe(200);
+
+        const res = await supprimerMonCompte(mobile.access_token, TEST_PASSWORD);
+
+        expect(res.statusCode).toBe(204);
+        expect(await statutMe(employee.token)).toBe(401);
+        expect(await statutMe(mobile.access_token)).toBe(401);
+        const refresh = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token: mobile.refresh_token } });
+        expect(refresh.statusCode).toBe(401);
+        const row = await app.db('user').where({ id: employee.id }).first();
+        expect(row.deleted_at).toBeTruthy();
+        expect(row.email).toBe(`deleted-${employee.id}@deleted.invalid`);
+        // L'ancienne adresse ne permet plus de se connecter.
+        const reconnexion = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: employee.email, password: TEST_PASSWORD } });
+        expect(reconnexion.statusCode).toBe(401);
+      });
+
+      it('exige le bon mot de passe, et ne touche alors a rien', async () => {
+        const mobile = await connecterMobile(employee.email);
+
+        const res = await supprimerMonCompte(mobile.access_token, 'PasLeBon123!');
+
+        expect(res.statusCode).toBe(401);
+        expect((await app.db('user').where({ id: employee.id }).first()).deleted_at).toBeNull();
+        expect(await statutMe(employee.token)).toBe(200);
+        expect(await statutMe(mobile.access_token)).toBe(200);
+      });
+
+      it("refuse au seul administrateur de laisser son organisation sans personne pour la gerer", async () => {
+        const res = await supprimerMonCompte(admin.token, TEST_PASSWORD);
+
+        expect(res.statusCode).toBe(409);
+        expect((await app.db('user').where({ id: admin.id }).first()).deleted_at).toBeNull();
+        expect(await statutMe(admin.token)).toBe(200);
+      });
     });
 
     it("refuse de supprimer le seul administrateur d'une autre organisation", async () => {

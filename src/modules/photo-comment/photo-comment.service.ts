@@ -1,5 +1,6 @@
 import { Knex } from 'knex';
 import BaseService, { PaginationOptions, PaginatedResult } from '@/lib/base-service';
+import { blockedIdsFor } from '@/lib/blocks';
 import { PhotoCommentRow } from './photo-comment.schema';
 
 class PhotoCommentService extends BaseService<PhotoCommentRow> {
@@ -10,12 +11,17 @@ class PhotoCommentService extends BaseService<PhotoCommentRow> {
   async findByPhoto(
     photoId: string,
     options: PaginationOptions = {},
+    viewerId?: string,
   ): Promise<PaginatedResult<PhotoCommentRow & { first_name: string; last_name: string }>> {
     const { page = 1, limit = 20, orderBy = 'created_at', order = 'desc' } = options;
     const offset = (page - 1) * limit;
 
+    const blocked = await blockedIdsFor(this.db, viewerId);
     const baseQuery = this.db(this.table)
       .join('user', 'photo_comment.author_id', 'user.id')
+      .modify((qb) => {
+        if (blocked.length > 0) qb.whereNotIn('photo_comment.author_id', blocked);
+      })
       .where('photo_comment.photo_id', photoId);
 
     const [items, [{ count }]] = await Promise.all([

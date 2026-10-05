@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { createHmac } from 'crypto';
 import type { FastifyInstance } from 'fastify';
+import type { WebSocket } from 'ws';
 import { createTestApp, auth } from '../helpers/app';
+import { addConnection, removeConnection } from '@/lib/realtime-hub';
 import { truncateAll } from '../helpers/db';
 import { createOrgWithAdmin, createUser, login, TEST_PASSWORD, type TestUser } from '../helpers/factories';
 
@@ -188,6 +190,20 @@ describe('Authentification', () => {
 
       expect(res.statusCode).toBe(403);
       expect(res.json().error).toBe('AccountDisabled');
+    });
+
+    it("un compte desactive puis reactive se reconnecte normalement", async () => {
+      await app.db('user').where({ email: inscription.email }).update({ is_active: false });
+      const refuse = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'Patronne@Alpha.fr', password: TEST_PASSWORD } });
+      expect(refuse.statusCode).toBe(403);
+      expect(refuse.json().error).toBe('AccountDisabled');
+      // Le refus ne delivre aucun jeton.
+      expect(refuse.json().access_token).toBeUndefined();
+      expect(refuse.json().refresh_token).toBeUndefined();
+
+      await app.db('user').where({ email: inscription.email }).update({ is_active: true });
+      const res = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: inscription.email, password: TEST_PASSWORD } });
+      expect(res.statusCode).toBe(200);
     });
 
     it("ne revele pas qu'un compte desactive existe sans le bon mot de passe", async () => {
@@ -380,6 +396,97 @@ describe('Authentification', () => {
     });
   });
 
+  /**
+   * Les WebSocket portent la deconnexion immediate : un code 4001 dit « connecte
+   * ailleurs », 4002 « compte desactive », 4003 « compte supprime ». Le
+   * renouvellement fermait la socket de l'appareil meme qui renouvelait, avec
+   * 4001 : l'app se croyait chassee et se deconnectait toutes les quinze
+   * minutes. On inscrit ici de fausses sockets dans le hub pour observer ce
+   * que l'API leur envoie, sans ouvrir de vraie connexion.
+   */
+  describe('fermeture des sockets temps reel', () => {
+    const ouvertes: { userId: string; ws: WebSocket }[] = [];
+
+    function fausseSocket(userId: string, platform: 'web' | 'mobile') {
+      const close = vi.fn();
+      const ws = { close, readyState: 1, send: vi.fn() } as unknown as WebSocket;
+      addConnection(userId, ws, platform);
+      ouvertes.push({ userId, ws });
+      return close;
+    }
+
+    afterEach(() => {
+      for (const { userId, ws } of ouvertes.splice(0)) removeConnection(userId, ws);
+    });
+
+    const connecter = async (email: string, platform: 'web' | 'mobile') => {
+      const res = await app.inject({ method: 'POST', url: '/auth/login', payload: { email, password: TEST_PASSWORD, platform } });
+      expect(res.statusCode).toBe(200);
+      return res.json() as { access_token: string; refresh_token: string; user: { id: string } };
+    };
+
+    it("un renouvellement ne ferme pas la socket de l'appareil qui renouvelle, ni celle du dashboard", async () => {
+      await sinscrire();
+      const web = await connecter(inscription.email, 'web');
+      const mobile = await connecter(inscription.email, 'mobile');
+      const socketMobile = fausseSocket(mobile.user.id, 'mobile');
+      const socketWeb = fausseSocket(mobile.user.id, 'web');
+
+      const res = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refresh_token: mobile.refresh_token } });
+
+      expect(res.statusCode).toBe(200);
+      expect(socketMobile).not.toHaveBeenCalled();
+      expect(socketWeb).not.toHaveBeenCalled();
+      expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(res.json().access_token) })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(web.access_token) })).statusCode).toBe(200);
+    });
+
+    it('une connexion neuve chasse la socket de la meme plateforme, et elle seule', async () => {
+      await sinscrire();
+      const premiere = await connecter(inscription.email, 'mobile');
+      const socketMobile = fausseSocket(premiere.user.id, 'mobile');
+      const socketWeb = fausseSocket(premiere.user.id, 'web');
+
+      await connecter(inscription.email, 'mobile');
+
+      expect(socketMobile).toHaveBeenCalledWith(4001, 'session-replaced');
+      expect(socketWeb).not.toHaveBeenCalled();
+    });
+
+    it('la desactivation ferme toutes les sockets du compte avec le code dedie', async () => {
+      const { organizationId, admin } = await createOrgWithAdmin(app, 'Alpha TP');
+      const employe = await createUser(app, { organizationId, role: 'employee' });
+      const mobile = await connecter(employe.email, 'mobile');
+      const socketMobile = fausseSocket(employe.id, 'mobile');
+      const socketWeb = fausseSocket(employe.id, 'web');
+
+      await app.inject({ method: 'PATCH', url: `/users/${employe.id}`, headers: auth(admin.token), payload: { is_active: false } });
+
+      expect(socketMobile).toHaveBeenCalledWith(4002, 'account-disabled');
+      expect(socketWeb).toHaveBeenCalledWith(4002, 'account-disabled');
+      // Les deux plateformes perdent aussi leur jeton d'acces.
+      for (const token of [mobile.access_token, employe.token]) {
+        expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(token) })).statusCode).toBe(401);
+      }
+    });
+
+    it('la suppression ferme toutes les sockets du compte avec le code dedie', async () => {
+      const { organizationId, admin } = await createOrgWithAdmin(app, 'Alpha TP');
+      const employe = await createUser(app, { organizationId, role: 'employee' });
+      const mobile = await connecter(employe.email, 'mobile');
+      const socketMobile = fausseSocket(employe.id, 'mobile');
+      const socketWeb = fausseSocket(employe.id, 'web');
+
+      expect((await app.inject({ method: 'DELETE', url: `/users/${employe.id}`, headers: auth(admin.token) })).statusCode).toBe(204);
+
+      expect(socketMobile).toHaveBeenCalledWith(4003, 'account-deleted');
+      expect(socketWeb).toHaveBeenCalledWith(4003, 'account-deleted');
+      for (const token of [mobile.access_token, employe.token]) {
+        expect((await app.inject({ method: 'GET', url: '/auth/me', headers: auth(token) })).statusCode).toBe(401);
+      }
+    });
+  });
+
   describe('mot de passe oublie', () => {
     beforeEach(async () => {
       await sinscrire();
@@ -399,6 +506,32 @@ describe('Authentification', () => {
 
       expect(connue.statusCode).toBe(inconnue.statusCode);
       expect(connue.json().message).toBe(inconnue.json().message);
+    });
+
+    it("retrouve le compte quelle que soit la casse de l'adresse saisie", async () => {
+      // Sans e-mail reel, `sendMail` journalise son destinataire : c'est la
+      // seule trace observable qu'un lien est bien parti pour ce compte.
+      const journal = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/auth/forgot-password',
+          payload: { email: '  PATRONNE@Alpha.FR ' },
+        });
+        const inconnue = await app.inject({
+          method: 'POST',
+          url: '/auth/forgot-password',
+          payload: { email: 'Personne@Nulle-Part.fr' },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(inconnue.statusCode).toBe(200);
+        const lignes = journal.mock.calls.map((c) => String(c[0]));
+        expect(lignes.filter((l) => l.includes('[MAIL]') && l.includes('patronne@alpha.fr'))).toHaveLength(1);
+        expect(lignes.some((l) => l.toLowerCase().includes('personne@nulle-part.fr'))).toBe(false);
+      } finally {
+        journal.mockRestore();
+      }
     });
 
     /** Reconstruit le jeton comme le fait le service, pour eprouver sa verification. */

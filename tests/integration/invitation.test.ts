@@ -315,6 +315,15 @@ describe("Parcours d'invitation", () => {
       expect((await inscrire(jeton)).statusCode).toBe(409);
     });
 
+    it("le lien refuse aussi une invitation dont l'adresse differe de la casse du compte", async () => {
+      await app.inject({ method: 'POST', url: '/auth/register', payload: emmie });
+      await inviter({ email: 'EMMIE@Alpha.fr' });
+      const jeton = (await app.db('invitation').where({ email: emmie.email }).first()).token as string;
+
+      expect((await inscrire(jeton)).statusCode).toBe(409);
+      expect(await app.db('user').whereRaw('lower(email) = ?', [emmie.email])).toHaveLength(1);
+    });
+
     it("rattache le compte a l'organisation invitante a la connexion", async () => {
       await inscriteAvantInvitation('manager');
 
@@ -410,6 +419,59 @@ describe("Parcours d'invitation", () => {
       expect(res.json().role).toBe('employee');
       expect(res.json().memberships.map((m: { organization_id: string }) => m.organization_id)).toContain(organizationId);
       expect((await app.db('invitation').where({ email: emmie.email }).first()).status).toBe('accepted');
+    });
+
+    it('honore en une fois des invitations de plusieurs organisations', async () => {
+      // Deux employeurs l'invitent avant qu'elle ne se reconnecte : elle doit
+      // entrer dans les deux, pas seulement dans la premiere trouvee.
+      const coquilleId = await inscriteAvantInvitation('employee');
+      const beta = await createOrgWithAdmin(app, 'Beta Batiment');
+      const res2 = await app.inject({
+        method: 'POST',
+        url: '/invitations',
+        headers: auth(beta.admin.token),
+        payload: { email: emmie.email, role: 'manager' },
+      });
+      expect(res2.statusCode).toBe(201);
+
+      const res = await seConnecter();
+
+      expect(res.statusCode).toBe(200);
+      const memberships = await app.db('organization_member').where({ user_id: res.json().user.id });
+      const roles = Object.fromEntries(memberships.map((m) => [m.organization_id, m.role]));
+      expect(roles).toEqual({ [coquilleId]: 'admin', [organizationId]: 'employee', [beta.organizationId]: 'manager' });
+      const statuts = (await app.db('invitation').whereRaw('lower(email) = ?', [emmie.email])).map((i) => i.status);
+      expect(statuts).toEqual(['accepted', 'accepted']);
+      // Sa coquille etait vide : elle bascule vers la derniere organisation qui l'a invitee.
+      expect(res.json().user.active_organization_id).toBe(beta.organizationId);
+    });
+
+    it("ne bascule pas quand son organisation compte un autre membre, meme sans chantier", async () => {
+      const coquilleId = await inscriteAvantInvitation();
+      await createUser(app, { organizationId: coquilleId, role: 'employee' });
+
+      const res = await seConnecter();
+
+      expect(res.json().user.active_organization_id).toBe(coquilleId);
+      expect(
+        await app.db('organization_member').where({ user_id: res.json().user.id, organization_id: organizationId }).first(),
+      ).toBeDefined();
+    });
+
+    it("une invitation de l'organisation dont on est deja membre est soldee sans doublon ni changement de contexte", async () => {
+      const deja = await createUser(app, { organizationId, role: 'employee', email: 'deja@alpha.fr' });
+      await inviter({ email: 'deja@alpha.fr', role: 'manager' });
+
+      const res = await app.inject({ method: 'GET', url: '/auth/me', headers: auth(deja.token) });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().active_organization_id).toBe(organizationId);
+      const memberships = await app.db('organization_member').where({ user_id: deja.id });
+      expect(memberships).toHaveLength(1);
+      // L'invitation ne promeut pas en silence : le role existant fait foi,
+      // un changement de role passe par la fiche du membre.
+      expect(memberships[0].role).toBe('employee');
+      expect((await app.db('invitation').where({ email: 'deja@alpha.fr' }).first()).status).toBe('accepted');
     });
 
     it('ne refait rien a la connexion suivante', async () => {

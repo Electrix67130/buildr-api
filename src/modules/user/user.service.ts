@@ -275,7 +275,7 @@ class UserService extends BaseService<UserRow> {
     if (orphanedOrg) {
       throw Object.assign(
         new Error(
-          `Tu es le seul administrateur de « ${orphanedOrg.name} ». Nomme un autre administrateur avant de supprimer ton compte.`,
+          `Vous êtes le seul administrateur de « ${orphanedOrg.name} ». Nommez un autre administrateur avant de supprimer votre compte.`,
         ),
         { statusCode: 409 },
       );
