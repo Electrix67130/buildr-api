@@ -124,6 +124,11 @@ cours restait valable jusqu'a son expiration, un quart d'heure.
 coupure immediate, code **4003** (`account-deleted`). Le cas typique est le
 dashboard reste ouvert pendant qu'on supprime son compte depuis le telephone.
 
+Le code 4001 n'est envoye que sur une **connexion neuve** : un renouvellement
+de jeton vient de l'appareil deja connecte et ne ferme pas sa WebSocket.
+Jusqu'a la 1.7.3, il la fermait aussi, et l'app se deconnectait toutes les
+quinze minutes des qu'elle etait au premier plan au moment du renouvellement.
+
 `/auth/logout` ne coupe egalement que la session de la plateforme d'ou provient
 le token. Les tokens emis avant l'introduction du claim `platform` restent
 acceptes sans controle de session, jusqu'a la prochaine connexion.

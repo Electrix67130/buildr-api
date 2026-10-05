@@ -373,9 +373,12 @@ class AuthService {
       .where('replaced_at', '<', new Date(Date.now() - REFRESH_REUSE_GRACE_MS))
       .del();
     invalidateSessionCache(user.id, platform);
-    // Ferme les WS de l'ancien appareil de cette plateforme — le frontend recoit
-    // un close 4001 et declenche son logout sans attendre la prochaine requete.
-    closeUserConnections(user.id, 'session-replaced', platform);
+    // Une connexion neuve chasse l'appareil precedent de cette plateforme :
+    // ses WebSocket recoivent le code 4001 et il se deconnecte. Un simple
+    // renouvellement de jeton, lui, vient de l'appareil deja connecte : fermer
+    // sa socket avec ce code le deconnectait toutes les quinze minutes, des
+    // que l'app etait au premier plan au moment du renouvellement.
+    if (!rotatedFromId) closeUserConnections(user.id, 'session-replaced', platform);
 
     const accessToken = this.fastify.jwt.sign(
       { sub: user.id, email: user.email, jti, platform },
