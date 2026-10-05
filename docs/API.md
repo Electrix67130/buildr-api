@@ -736,7 +736,16 @@ et par notification, dans sa langue. Regles :
 
 Reponse des listes : `{ data, meta, counts: { pending } }`, chaque ligne avec
 le nom du rapporteur, celui de la personne visee, du chantier et de
-l'organisation. Pas de blocage d'utilisateur pour l'instant.
+l'organisation.
+
+**Sort du compte vise.** Desactiver ou supprimer un compte — par un admin, par
+la console, ou par la personne elle-meme — supprime les messages et photos qui
+font l'objet d'un signalement **en attente** contre lui, et seulement ceux-la
+(`lib/moderation.ts`). Le reste de ce qu'il a ecrit reste, attribue a « Compte
+supprime » : c'est l'historique du chantier. Les signalements concernes
+passent en `resolved` avec la note « Contenu supprime avec le compte ». Un
+signalement deja rejete ne supprime rien. Le blocage d'utilisateur existe par
+ailleurs (section suivante).
 
 ## Blocage d'un utilisateur
 

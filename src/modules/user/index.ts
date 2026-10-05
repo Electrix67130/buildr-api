@@ -6,6 +6,7 @@ import { getUserOrganizationId } from '@/lib/org-scope';
 import { getActiveMembership } from '@/lib/active-membership';
 import { emitToUser } from '@/lib/realtime-hub';
 import { revokeAllSessions } from '@/lib/sessions';
+import { purgeReportedContent } from '@/lib/moderation';
 
 const searchSchema = z.object({
   q: z.string().min(1).max(100),
@@ -189,6 +190,8 @@ export default fp(
       // des la requete suivante au lieu de rester valable un quart d'heure.
       if (data.is_active === false) {
         await revokeAllSessions(fastify.db, id, 'account-disabled');
+        // Les contenus signales contre lui partent avec le compte, eux seuls.
+        await purgeReportedContent(fastify.db, id, request.user.sub);
       }
 
       // L'admin qui change company_name d'un membre interne (non-client) propage a toute l'org.
@@ -225,6 +228,8 @@ export default fp(
     fastify.delete('/users/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
       const { password } = deleteAccountSchema.parse(request.body);
       await service.deleteOwnAccount(request.user.sub, password);
+      // Meme en partant de soi-meme : ce qui a ete signale ne reste pas.
+      await purgeReportedContent(fastify.db, request.user.sub, null);
       return reply.code(204).send();
     });
 
@@ -266,6 +271,7 @@ export default fp(
       // sont coupees d'abord — sockets et cache sont en memoire — pour que la
       // personne voie son ecran se fermer tout de suite.
       await revokeAllSessions(fastify.db, id, 'account-deleted');
+      await purgeReportedContent(fastify.db, id, request.user.sub);
       await service.anonymizeAccount(id);
       return reply.code(204).send();
     });

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createTestApp, auth } from '../helpers/app';
 import { truncateAll } from '../helpers/db';
-import { createOrgWithAdmin, createUser, createSuperAdmin, type TestUser } from '../helpers/factories';
+import { createOrgWithAdmin, createUser, createSuperAdmin, TEST_PASSWORD, type TestUser } from '../helpers/factories';
 
 /**
  * Signalements : un message, une photo ou un membre remonte a l'administrateur
@@ -194,6 +194,69 @@ describe('Signalements', () => {
     it('un simple membre ne traite rien', async () => {
       const report = (await signaler(autre.token, { target_type: 'comment', target_id: messageId })).json();
       expect((await app.inject({ method: 'PATCH', url: `/reports/${report.id}`, headers: auth(ouvrier.token), payload: { status: 'dismissed' } })).statusCode).toBe(404);
+    });
+  });
+
+  /**
+   * Couper le compte depuis un signalement doit emporter ce qui a ete
+   * signale — et seulement cela. Le reste de ce que la personne a ecrit
+   * reste : c'est l'historique du chantier.
+   */
+  describe('contenus signales et sort du compte', () => {
+    let autreMessageId: string;
+    let photoId: string;
+
+    beforeEach(async () => {
+      autreMessageId = (await app.inject({ method: 'POST', url: '/comments', headers: auth(ouvrier.token), payload: { chantier_id: chantierId, content: 'Message correct' } })).json().id;
+      photoId = (await app.inject({ method: 'POST', url: '/photos', headers: auth(admin.token), payload: { chantier_id: chantierId, url: 'http://localhost:3000/files/x.jpg' } })).json().id;
+      // Le message deplace et une photo de l'admin sont signales ; l'autre message non.
+      await signaler(autre.token, { target_type: 'comment', target_id: messageId });
+    });
+
+    const etat = async () => ({
+      messageSignale: await app.db('comment').where({ id: messageId }).first(),
+      autreMessage: await app.db('comment').where({ id: autreMessageId }).first(),
+      photo: await app.db('photo').where({ id: photoId }).first(),
+      rapports: await app.db('report').where({ target_user_id: ouvrier.id }),
+    });
+
+    it("desactiver le compte supprime le contenu signale, et seulement lui", async () => {
+      const res = await app.inject({ method: 'PATCH', url: `/users/${ouvrier.id}`, headers: auth(admin.token), payload: { is_active: false } });
+      expect(res.statusCode).toBe(200);
+
+      const e = await etat();
+      expect(e.messageSignale).toBeUndefined();
+      expect(e.autreMessage).toBeTruthy();
+      expect(e.photo).toBeTruthy();
+      expect(e.rapports.map((r) => [r.status, r.resolution_note, r.resolved_by])).toEqual([['resolved', 'Contenu supprimé avec le compte', admin.id]]);
+    });
+
+    it("supprimer le compte par un admin fait de meme", async () => {
+      await app.inject({ method: 'DELETE', url: `/users/${ouvrier.id}`, headers: auth(admin.token) });
+
+      const e = await etat();
+      expect(e.messageSignale).toBeUndefined();
+      expect(e.autreMessage).toBeTruthy();
+      expect(e.rapports[0].status).toBe('resolved');
+    });
+
+    it("partir de soi-meme aussi", async () => {
+      const res = await app.inject({ method: 'DELETE', url: '/users/me', headers: auth(ouvrier.token), payload: { password: TEST_PASSWORD } });
+      expect(res.statusCode).toBe(204);
+
+      const e = await etat();
+      expect(e.messageSignale).toBeUndefined();
+      expect(e.autreMessage).toBeTruthy();
+      expect(e.rapports[0].resolved_by).toBeNull();
+    });
+
+    it("un signalement deja classe sans suite laisse le contenu en place", async () => {
+      const [report] = await app.db('report').where({ target_user_id: ouvrier.id });
+      await app.inject({ method: 'PATCH', url: `/reports/${report.id}`, headers: auth(admin.token), payload: { status: 'dismissed' } });
+
+      await app.inject({ method: 'PATCH', url: `/users/${ouvrier.id}`, headers: auth(admin.token), payload: { is_active: false } });
+
+      expect((await etat()).messageSignale).toBeTruthy();
     });
   });
 });

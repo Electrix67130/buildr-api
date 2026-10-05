@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { requireSuperAdmin, logAudit } from '@/lib/super-admin';
 import { revokeAllSessions } from '@/lib/sessions';
+import { purgeReportedContent } from '@/lib/moderation';
 import UserService from '@/modules/user/user.service';
 import type { CloseReason } from '@/lib/realtime-hub';
 import {
@@ -330,6 +331,7 @@ export default fp(
       const updated = await fastify.db('user').where({ id }).update({ is_active: false });
       if (!updated) return reply.notFound('User not found');
       await revokeSessions(id, 'account-disabled');
+      await purgeReportedContent(fastify.db, id, request.user.sub);
       await logAudit(fastify.db, {
         super_admin_id: request.user.sub,
         action: 'user.disable',
@@ -404,6 +406,7 @@ export default fp(
       const exists = await fastify.db('user').where({ id }).first();
       if (!exists) return reply.notFound('User not found');
       await revokeSessions(id, 'account-deleted');
+      await purgeReportedContent(fastify.db, id, request.user.sub);
       if (purge) {
         await fastify.db('user').where({ id }).del();
       } else {
