@@ -27,7 +27,7 @@ export default fp(
     fastify.get('/photos', { preHandler: [fastify.authenticate] }, async (request) => {
       const { chantier_id, step_id, ...pagination } = byChantierSchema.parse(request.query);
       await requirePermission(fastify.db, request.user.sub, chantier_id, 'view_photos');
-      const result = await service.findByChantier(chantier_id, pagination, step_id);
+      const result = await service.findByChantier(chantier_id, pagination, step_id, request.user.sub);
       return { ...result, data: signUrlsInList(result.data) };
     });
 

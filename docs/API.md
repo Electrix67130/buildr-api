@@ -738,6 +738,23 @@ Reponse des listes : `{ data, meta, counts: { pending } }`, chaque ligne avec
 le nom du rapporteur, celui de la personne visee, du chantier et de
 l'organisation. Pas de blocage d'utilisateur pour l'instant.
 
+## Blocage d'un utilisateur
+
+| Methode | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/blocks` | JWT | Les personnes que j'ai bloquees |
+| POST | `/blocks` | JWT | Bloquer `{ user_id }` — une organisation en commun, sinon 404 |
+| DELETE | `/blocks/:userId` | JWT | Debloquer |
+
+Personnel et silencieux : les **messages** (discussions de chantier et
+d'etape, fil d'une urgence) et les **photos** de la personne bloquee ne sont
+plus servis a celui qui bloque, et a lui seul. Elle n'est pas prevenue, reste
+dans l'equipe et continue de travailler. Les photos d'etape et d'urgence, qui
+documentent le chantier, restent visibles. `GET /auth/me` porte
+`blocked_user_ids` pour que les clients filtrent aussi ce qu'ils ont en cache.
+Idempotent : bloquer deux fois ne change rien, on ne se bloque pas soi-meme
+(**400**).
+
 ## Signalements d'erreur
 
 | Methode | Route | Auth | Description |

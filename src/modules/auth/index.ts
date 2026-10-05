@@ -5,6 +5,7 @@ import AuthService from './auth.service';
 import { registerSchema, loginSchema, refreshSchema, updatePasswordSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema';
 import OrganizationMemberService from '../organization-member/organization-member.service';
 import InvitationService from '../invitation/invitation.service';
+import { blockedIdsFor } from '@/lib/blocks';
 import { toPublicUser } from '../user/user.schema';
 
 const switchOrganizationSchema = z.object({
@@ -83,11 +84,15 @@ export default fp(
         ? memberships.find((m) => m.organization_id === user.active_organization_id)
         : memberships[0];
 
+      // Les clients filtrent aussi localement ce qu'ils ont deja en cache.
+      const blocked_user_ids = await blockedIdsFor(fastify.db, user.id);
+
       return {
         ...safeUser,
         role: active?.role ?? null,
         organization_id: active?.organization_id ?? null,
         active_organization_id: user.active_organization_id ?? null,
+        blocked_user_ids,
         memberships: memberships.map((m) => ({
           organization_id: m.organization_id,
           organization_name: m.organization_name,

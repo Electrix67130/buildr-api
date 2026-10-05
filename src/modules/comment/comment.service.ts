@@ -1,5 +1,6 @@
 import { Knex } from 'knex';
 import BaseService, { PaginationOptions, PaginatedResult } from '@/lib/base-service';
+import { blockedIdsFor } from '@/lib/blocks';
 import { CommentRow, CommentWithMeta, CommentReplyPreview, CommentReactionSummary, ReactionEmoji } from './comment.schema';
 
 class CommentService extends BaseService<CommentRow> {
@@ -18,9 +19,14 @@ class CommentService extends BaseService<CommentRow> {
     const { page = 1, limit = 20, orderBy = 'created_at', order = 'desc', stepId, viewerId } = options;
     const offset = (page - 1) * limit;
 
+    // Les messages des personnes que le lecteur a bloquees ne lui sont pas servis.
+    const blocked = await blockedIdsFor(this.db, viewerId);
     const baseQuery = this.db(this.table)
       .join('user', 'comment.author_id', 'user.id')
-      .where('comment.chantier_id', chantierId);
+      .where('comment.chantier_id', chantierId)
+      .modify((qb) => {
+        if (blocked.length > 0) qb.whereNotIn('comment.author_id', blocked);
+      });
 
     if (stepId === 'general') {
       baseQuery.whereNull('comment.step_id');

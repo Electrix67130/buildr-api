@@ -1,5 +1,6 @@
 import { Knex } from 'knex';
 import BaseService, { PaginationOptions, PaginatedResult } from '@/lib/base-service';
+import { blockedIdsFor } from '@/lib/blocks';
 import { PhotoRow } from './photo.schema';
 
 class PhotoService extends BaseService<PhotoRow> {
@@ -11,13 +12,18 @@ class PhotoService extends BaseService<PhotoRow> {
     chantierId: string,
     options: PaginationOptions = {},
     stepId?: string,
+    viewerId?: string,
   ): Promise<PaginatedResult<PhotoRow & { first_name: string; last_name: string }>> {
     const { page = 1, limit = 20, orderBy = 'created_at', order = 'desc' } = options;
     const offset = (page - 1) * limit;
 
+    const blocked = await blockedIdsFor(this.db, viewerId);
     const baseQuery = this.db(this.table)
       .join('user', 'photo.uploaded_by', 'user.id')
       .where('photo.chantier_id', chantierId)
+      .modify((qb) => {
+        if (blocked.length > 0) qb.whereNotIn('photo.uploaded_by', blocked);
+      })
       // Les photos d'une urgence se voient sur l'urgence, pas dans la galerie :
       // elles documentent un incident, pas l'avancement du chantier.
       .whereNull('photo.emergency_id')

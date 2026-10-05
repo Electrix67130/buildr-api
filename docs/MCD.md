@@ -525,6 +525,20 @@ gerees de l'API **et** les plantages remontes par les clients via
 
 ---
 
+## Table : `user_block`
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `blocker_id` | uuid | NOT NULL, FK -> `user.id` CASCADE — celui qui bloque |
+| `blocked_id` | uuid | NOT NULL, FK -> `user.id` CASCADE — la personne bloquee |
+| `created_at` | timestamp | NOT NULL, default now |
+
+**Unicite :** `uq_user_block` (blocker_id, blocked_id). **Index :** `idx_user_block_blocker`.
+**Migration :** `20261005120000_create_user_block.js`.
+
+---
+
 ## Table : `report`
 
 | Colonne | Type | Contraintes |

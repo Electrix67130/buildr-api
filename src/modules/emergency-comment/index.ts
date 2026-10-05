@@ -48,7 +48,7 @@ export default fp(
       if (!(await chantierAccessible(request.user.sub, emergency_id))) {
         return reply.notFound('Emergency not found');
       }
-      return service.findByEmergency(emergency_id, pagination);
+      return service.findByEmergency(emergency_id, pagination, request.user.sub);
     });
 
     // POST /emergency-comments
