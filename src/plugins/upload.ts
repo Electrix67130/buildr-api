@@ -4,7 +4,7 @@ import { randomUUID, createHmac } from 'crypto';
 import path from 'path';
 import { z } from 'zod';
 import env from '@/config/env';
-import { FILE_URL_TTL_MS } from '@/lib/sign-url';
+import { FILE_URL_TTL_MS, tokenExpiry } from '@/lib/sign-url';
 import { putFile, fileExists, getDownloadUrl } from '@/lib/storage';
 import { isImage, isThumbnailable, optimizeImage, generateThumbnail } from '@/lib/image';
 
@@ -13,7 +13,7 @@ const TOKEN_TTL_MS = FILE_URL_TTL_MS;
 
 /** Generate a signed token: filename + expiry, signed with JWT_SECRET */
 function generateFileToken(filename: string): { token: string; expires: number } {
-  const expires = Date.now() + TOKEN_TTL_MS;
+  const expires = tokenExpiry();
   const data = `${filename}:${expires}`;
   const signature = createHmac('sha256', env.JWT_SECRET).update(data).digest('hex');
   const token = Buffer.from(JSON.stringify({ f: filename, e: expires, s: signature })).toString('base64url');
@@ -69,6 +69,12 @@ async function uploadPlugin(fastify: FastifyInstance) {
     if (!(await fileExists(safeName))) {
       return reply.notFound('File not found');
     }
+
+    // Le fichier ne change jamais sous un meme nom, et son URL est stable
+    // pendant la fenetre de signature : on autorise le cache cote client,
+    // prive, douze heures. Pour la redirection S3, c'est la redirection qui
+    // est gardee, donc la meme URL presignee, donc le meme objet en cache.
+    reply.header('cache-control', 'private, max-age=43200');
 
     // En mode s3, le fichier ne transite pas par l'API : on redirige vers une
     // URL presignee de meme duree de vie que le token.

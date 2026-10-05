@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'crypto';
-import { signFileUrl, signUrlsDeep, signUrlsIn, signUrlsInList, stripFileToken, FILE_URL_TTL_MS } from '@/lib/sign-url';
+import { signFileUrl, signUrlsDeep, signUrlsIn, signUrlsInList, stripFileToken, FILE_URL_TTL_MS, SIGNING_WINDOW_MS } from '@/lib/sign-url';
 
 /**
  * Signature des URLs de fichiers.
@@ -51,8 +51,17 @@ describe('Signature des URLs de fichiers', () => {
     const avant = Date.now();
     const charge = decoder(signFileUrl('http://localhost:3000/files/photo-123.jpg'));
 
-    expect(charge.e).toBeGreaterThanOrEqual(avant + FILE_URL_TTL_MS);
+    // Arrondie au debut de la fenetre : entre TTL - fenetre et TTL.
+    expect(charge.e).toBeGreaterThan(avant + FILE_URL_TTL_MS - SIGNING_WINDOW_MS);
     expect(charge.e).toBeLessThanOrEqual(Date.now() + FILE_URL_TTL_MS);
+  });
+
+  it("donne la meme URL pendant toute une fenetre, pour que le cache d'images serve", () => {
+    // Un jeton different a chaque reponse faisait retelecharger chaque vignette
+    // a chaque rafraichissement de la liste.
+    const a = signFileUrl('http://localhost:3000/files/photo-123.jpg');
+    const b = signFileUrl('http://localhost:3000/files/photo-123.jpg');
+    expect(b).toBe(a);
   });
 
   it("laisse intactes les adresses externes", () => {

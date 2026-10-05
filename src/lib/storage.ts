@@ -8,7 +8,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { FILE_URL_TTL_MS } from '@/lib/sign-url';
+import { FILE_URL_TTL_MS, signingWindowStart } from '@/lib/sign-url';
 import env from '@/config/env';
 
 /**
@@ -71,6 +71,9 @@ export async function putFile(
         Key: key,
         Body: body,
         ContentType: contentType,
+        // Les cles sont uniques et jamais reecrites : le navigateur et le
+        // telephone peuvent garder le fichier aussi longtemps qu'ils veulent.
+        CacheControl: 'public, max-age=31536000, immutable',
       }),
     );
     return;
@@ -97,10 +100,13 @@ export async function fileExists(key: string): Promise<boolean> {
  */
 export async function getDownloadUrl(key: string): Promise<string | null> {
   if (!isS3) return null;
+  // Signee a partir du debut de la fenetre en cours, pas de l'instant
+  // present : l'URL presignee est la meme pendant six heures, et le cache
+  // d'images la reconnait au lieu de retelecharger. Validite 18 a 24 h.
   return getSignedUrl(
     s3(),
     new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }),
-    { expiresIn: SIGNED_URL_TTL_SECONDS },
+    { expiresIn: SIGNED_URL_TTL_SECONDS, signingDate: new Date(signingWindowStart()) },
   );
 }
 

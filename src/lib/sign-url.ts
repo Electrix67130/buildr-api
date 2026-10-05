@@ -24,6 +24,31 @@ export const FILE_URL_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_TTL_MS = FILE_URL_TTL_MS;
 
 /**
+ * Fenetre de stabilite des URLs signees.
+ *
+ * Un jeton calcule a partir de l'instant present change a chaque reponse :
+ * l'URL d'une meme photo etait differente a chaque rafraichissement de la
+ * liste, et le cache d'images du telephone comme du navigateur la
+ * retelechargeait a chaque fois — d'ou des vignettes qui mettaient du temps a
+ * apparaitre alors qu'on les avait deja vues. L'expiration est arrondie au
+ * debut de la fenetre en cours : pendant six heures, la meme photo garde la
+ * meme URL, et le cache sert. La validite reste comprise entre dix-huit et
+ * vingt-quatre heures. La meme fenetre aligne l'URL presignee S3
+ * (lib/storage.ts).
+ */
+export const SIGNING_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/** Debut de la fenetre de signature en cours. */
+export function signingWindowStart(now = Date.now()): number {
+  return Math.floor(now / SIGNING_WINDOW_MS) * SIGNING_WINDOW_MS;
+}
+
+/** Date d'expiration d'un jeton emis maintenant : stable pendant la fenetre. */
+export function tokenExpiry(now = Date.now()): number {
+  return signingWindowStart(now) + TOKEN_TTL_MS;
+}
+
+/**
  * Retire le jeton d'une URL de fichier, pour la stocker nue.
  *
  * Le hook global signe TOUTES les reponses, celle de `/upload` comprise : le
@@ -47,7 +72,7 @@ export function signFileUrl(fileUrl: string): string {
   const filename = stripFileToken(fileUrl).split('/').pop();
   if (!filename) return fileUrl;
 
-  const expires = Date.now() + TOKEN_TTL_MS;
+  const expires = tokenExpiry();
   const data = `${filename}:${expires}`;
   const signature = createHmac('sha256', env.JWT_SECRET).update(data).digest('hex');
   const token = Buffer.from(JSON.stringify({ f: filename, e: expires, s: signature })).toString('base64url');
