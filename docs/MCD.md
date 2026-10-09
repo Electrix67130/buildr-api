@@ -475,6 +475,32 @@ Tokens Expo Push enregistres par device. Un user peut avoir plusieurs lignes (un
 
 Toggle global ON/OFF des notifications. Quand `false`, `sendPushToUsers` skip l'utilisateur entier (toutes plateformes confondues).
 
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `notification_prefs` | jsonb | NOT NULL, default `{}` |
+
+Une valeur par categorie de notification (`{ "photos": false }`). Une categorie
+absente est active. **Migration :** `20261009120000_notification_preferences.js`.
+
+---
+
+## Table : `chantier_notification_level`
+
+Reglage des notifications d'un utilisateur sur un chantier, quand il n'est pas
+« tout » : une ligne n'existe que pour un chantier mis en sourdine.
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `user_id` | uuid | NOT NULL, FK -> `user.id` CASCADE |
+| `chantier_id` | uuid | NOT NULL, FK -> `chantier.id` CASCADE |
+| `level` | varchar(16) | NOT NULL, CHECK `important` (mentions et urgences) \| `none` (rien) |
+| `created_at` | timestamp | NOT NULL, default now |
+| `updated_at` | timestamp | NOT NULL, default now |
+
+**Unicite :** `uq_chantier_notification_level` (user_id, chantier_id). **Index :** `idx_chantier_notification_level_chantier`.
+**Migration :** `20261009120000_notification_preferences.js`.
+
 ---
 
 ## Table : `audit_log`

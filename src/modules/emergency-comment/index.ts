@@ -4,9 +4,7 @@ import EmergencyCommentService from './emergency-comment.service';
 import { createEmergencyCommentSchema, updateEmergencyCommentSchema } from './emergency-comment.schema';
 import { isChantierParticipant, isChantierAdminOrCreator } from '@/lib/permissions';
 import { emitToChantier } from '@/lib/realtime-hub';
-import { sendPushToChantier } from '@/lib/push-notifications';
-import { commentPush } from '@/lib/push-i18n';
-import { getActorAndChantierNames } from '@/lib/push-helpers';
+import { notifyMessage } from '@/lib/message-notifications';
 
 const byEmergencySchema = z.object({
   emergency_id: z.string().uuid(),
@@ -67,23 +65,13 @@ export default fp(
           resource_id: comment.id,
           actor_id: request.user.sub,
         }).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
-        (async () => {
-          const { actorName, chantierName } = await getActorAndChantierNames(fastify.db, request.user.sub, emergency.chantier_id);
-          await sendPushToChantier(
-            fastify.db,
-            emergency.chantier_id,
-            request.user.sub,
-            commentPush({
-              chantierName,
-              actorName,
-              content: data.content,
-              chantierId: emergency.chantier_id,
-              onEmergency: true,
-              emergencyId: data.emergency_id,
-            }),
-            fastify.log,
-          );
-        })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
+        notifyMessage(fastify.db, fastify.log, {
+          chantierId: emergency.chantier_id,
+          authorId: request.user.sub,
+          commentId: comment.id,
+          content: data.content,
+          emergencyId: data.emergency_id,
+        }).catch((err) => fastify.log.error({ err }, 'Push send failed'));
       }
       return reply.code(201).send(comment);
     });
@@ -106,6 +94,15 @@ export default fp(
           resource_id: id,
           actor_id: request.user.sub,
         }).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
+        // Seules les personnes nouvellement mentionnees sont prevenues.
+        notifyMessage(fastify.db, fastify.log, {
+          chantierId: emergency.chantier_id,
+          authorId: request.user.sub,
+          commentId: id,
+          content: data.content,
+          previousContent: existing.content,
+          emergencyId: existing.emergency_id,
+        }).catch((err) => fastify.log.error({ err }, 'Push send failed'));
       }
       return updated;
     });

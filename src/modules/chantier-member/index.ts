@@ -1,12 +1,12 @@
 import fp from 'fastify-plugin';
 import { z } from 'zod';
 import ChantierMemberService from './chantier-member.service';
-import { createChantierMemberSchema, updateChantierMemberSchema } from './chantier-member.schema';
-import { hasPermission } from '@/lib/permissions';
+import { createChantierMemberSchema, updateChantierMemberSchema, mentionableQuerySchema } from './chantier-member.schema';
+import { hasPermission, isChantierParticipant } from '@/lib/permissions';
 import { getActiveMembership } from '@/lib/active-membership';
 import { isChantierAdminOrCreator } from '@/lib/permissions';
 import { fireAndForget, syncMemberAdded, syncMemberRemoved } from '@/modules/calendar-integration/sync';
-import { sendPushToUser } from '@/lib/push-notifications';
+import { sendPushToUser, chantierAudience } from '@/lib/push-notifications';
 import { memberAddedPush } from '@/lib/push-i18n';
 import { getActorAndChantierNames } from '@/lib/push-helpers';
 import { emitToChantier, emitToUser } from '@/lib/realtime-hub';
@@ -66,6 +66,27 @@ export default fp(
           return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'Pas membre de ce chantier' });
         }
         return { data: [ownRow], meta: { total: 1, page: 1, limit: 1, totalPages: 1 } };
+      },
+    );
+
+    // GET /chantier-members/mentionable — les personnes qu'on peut mentionner dans
+    // un fil : celles qui le lisent. Sans view_team, on y voit quand meme leurs
+    // noms (et seulement leurs noms) : on ne mentionne que quelqu'un qui lit deja
+    // la conversation, donc dont on voit deja les messages signes.
+    fastify.get(
+      '/chantier-members/mentionable',
+      { preHandler: [fastify.authenticate] },
+      async (request, reply) => {
+        const { chantier_id, thread } = mentionableQuerySchema.parse(request.query);
+        const allowed =
+          thread === 'emergency'
+            ? await isChantierParticipant(fastify.db, request.user.sub, chantier_id)
+            : await hasPermission(fastify.db, request.user.sub, chantier_id, 'view_comments');
+        if (!allowed) {
+          return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'Pas acces a ce fil' });
+        }
+        const audience = await chantierAudience(fastify.db, chantier_id, thread === 'emergency' ? 'participant' : 'view_comments');
+        return service.findMentionable(audience.filter((id) => id !== request.user.sub));
       },
     );
 

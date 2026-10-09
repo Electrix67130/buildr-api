@@ -10,6 +10,7 @@ import {
   photoAddedPush,
   emergencyPush,
   commentPush,
+  mentionPush,
   reportPush,
 } from '@/lib/push-i18n';
 
@@ -33,6 +34,7 @@ const CONSTRUCTEURS = [
   ['photo ajoutee', photoAddedPush({ ...CHANTIER })],
   ['urgence', emergencyPush({ ...CHANTIER, emergencyId: 'u-1', isClaim: false })],
   ['reclamation', emergencyPush({ ...CHANTIER, emergencyId: 'u-1', isClaim: true })],
+  ['mention', mentionPush({ ...CHANTIER, content: 'Tu peux verifier ?', commentId: 'm-1' })],
 ] as const;
 
 describe('Traductions des notifications', () => {
@@ -56,11 +58,13 @@ describe('Traductions des notifications', () => {
     expect(T.emergencyTitle.trim()).not.toBe('');
     expect(T.claimTitle.trim()).not.toBe('');
     expect(T.feedbackReply.trim()).not.toBe('');
+    expect(T.mentioned('Marie')).toContain('Marie');
   });
 
   it.each(PUSH_LOCALES.filter((l) => l !== 'fr'))('le %s est traduit, pas recopie du francais', (langue) => {
     expect(PUSH[langue].photoAdded('Marie')).not.toBe(PUSH.fr.photoAdded('Marie'));
     expect(PUSH[langue].emergencyTitle).not.toBe(PUSH.fr.emergencyTitle);
+    expect(PUSH[langue].mentioned('Marie')).not.toBe(PUSH.fr.mentioned('Marie'));
   });
 
   it.each(['fr', 'it'] as const)("aucune apostrophe n'a ete perdue en %s", (langue) => {
@@ -77,6 +81,7 @@ describe('Traductions des notifications', () => {
       T.emergencyTitle,
       T.claimTitle,
       T.feedbackReply,
+      T.mentioned('Marie'),
     ];
     for (const texte of textes) {
       expect(texte, `${langue} : « ${texte} »`).not.toMatch(suspect);
@@ -248,5 +253,22 @@ describe('Signalement a examiner', () => {
     for (const inconnue of ['zz', '', 'FR']) {
       expect(construire(inconnue)).toEqual(construire('fr'));
     }
+  });
+});
+
+describe('Mentions', () => {
+  const ID = '8f2c1a4e-3b5d-4c6e-9f70-1a2b3c4d5e6f';
+
+  it('montre le nom, pas la syntaxe, et dit ou ouvrir le message', () => {
+    const message = mentionPush({ ...CHANTIER, content: `@[Paul Martin](${ID}) tu peux verifier ?`, commentId: 'm-1', stepId: 'e-1' })('fr');
+
+    expect(message.title).toBe('@ Pont de la Loire');
+    expect(message.body).toBe('Marie Dupont vous a mentionné : @Paul Martin tu peux verifier ?');
+    expect(message.data).toEqual({ type: 'mention', chantier_id: 'c-1', comment_id: 'm-1', step_id: 'e-1' });
+  });
+
+  it("un message ordinaire affiche aussi les mentions par leur nom", () => {
+    const message = commentPush({ ...CHANTIER, content: `@[Paul Martin](${ID}) les plans` });
+    expect(message.body).toBe('Marie Dupont : @Paul Martin les plans');
   });
 });

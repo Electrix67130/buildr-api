@@ -505,9 +505,18 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 | GET | `/chantier-members` | JWT | Liste paginee |
 | GET | `/chantier-members/:id` | JWT | Detail |
 | GET | `/chantier-members/by-chantier?chantier_id=xxx` | JWT | Membres d'un chantier (avec infos user) |
+| GET | `/chantier-members/mentionable?chantier_id=xxx&thread=comments\|emergency` | JWT | Personnes qu'on peut mentionner dans ce fil |
 | POST | `/chantier-members` | JWT | Ajouter un membre |
 | PATCH | `/chantier-members/:id` | JWT | Modifier role/permissions |
 | DELETE | `/chantier-members/:id` | JWT | Retirer un membre |
+
+### Droits a l'ajout d'un membre
+
+`POST /chantier-members` sans drapeau `can_view_*` applique les droits du role
+(`DEFAULT_PERMISSIONS`, `chantier-member.service.ts`) : un gestionnaire reseau ne
+voit que les documents, un client ni les documents ni les etapes. Un drapeau
+precise dans le body l'emporte. `can_edit` vaut `false` sauf s'il est precise,
+quel que soit le role.
 
 ### Les permissions d'un administrateur ne se modifient pas
 
@@ -666,6 +675,19 @@ verifiee.
 
 **Reponse 201 :** invitation avec token (expire dans 7 jours)
 
+### Personnes mentionnables
+
+`GET /chantier-members/mentionable` renvoie `[{ id, first_name, last_name }]`,
+par ordre alphabetique, sans l'appelant : celles qui lisent le fil, c'est-a-dire
+le createur du chantier, les administrateurs de son organisation, et les membres
+ayant `can_view_comments` (`thread=comments`, par defaut) ou tous les membres
+(`thread=emergency`, le fil d'une urgence). Les comptes desactives ou supprimes
+n'y figurent pas.
+
+Il faut lire le fil soi-meme (`view_comments`, ou participer au chantier pour
+une urgence), sinon **403**. `view_team` n'est **pas** requis : on ne voit que
+des noms, ceux de personnes dont on lit deja les messages signes.
+
 ---
 
 ## Comments
@@ -698,6 +720,19 @@ liste fermee `REACTION_EMOJIS` (`comment.schema.ts`) : 👍 ❤️ 😂 😮 �
 Reponse : `{ comment_id, reactions }`. La liste renvoie sur chaque message
 `reactions: [{ emoji, count, mine }]`, `mine` du point de vue de l'appelant.
 Chaque bascule emet `comment.updated` sur le canal temps reel.
+
+### Mentions
+
+Une mention s'ecrit dans `content` sous la forme `@[Prenom Nom](user_id)`
+(`src/lib/mentions.ts`). Le nom garde le message lisible tel quel ; les clients
+affichent `@Prenom Nom` en couleur. Meme syntaxe dans le fil d'une urgence
+(`/emergency-comments`).
+
+A la creation, chaque personne mentionnee **qui lit le fil** recoit une
+notification `mention` (voir Push Notifications) au lieu de la notification
+`comment` ordinaire — une seule alerte par message. Une mention de quelqu'un qui
+n'a pas acces au fil est ignoree. Une modification (`PATCH`) ne previent que les
+personnes **nouvellement** mentionnees, et rien d'autre.
 
 ---
 
@@ -1175,7 +1210,7 @@ Tous ces hooks sont **non bloquants** (`setImmediate` + try/catch loggue) — la
 
 ## Push Notifications
 
-Enregistrement des tokens Expo Push par device et toggle global ON/OFF par user. Les pushs sont envoyes en fire-and-forget sur les evenements chantier (commentaire, photo, document, urgence, ajout d'un membre, validation d'etape, etc.).
+Enregistrement des tokens Expo Push par device, interrupteur general, preferences par categorie et par chantier. Les pushs sont envoyes en fire-and-forget sur les evenements chantier (commentaire, mention, photo, document, urgence, ajout d'un membre, validation d'etape, etc.).
 
 | Methode | Route | Auth | Body | Description |
 |---|---|---|---|---|
@@ -1184,6 +1219,40 @@ Enregistrement des tokens Expo Push par device et toggle global ON/OFF par user.
 | PATCH | `/push-tokens/preference` | JWT | `{ enabled: boolean }` | Active/desactive globalement les pushs pour le user (set `user.push_enabled`). Reponse : `{ push_enabled }`. |
 
 Quand `user.push_enabled = false`, l'envoi est skip pour cet user dans `sendPushToUsers`. Les tokens dont Expo retourne `DeviceNotRegistered` sont automatiquement nettoyes en BDD.
+
+**Destinataires.** Une notification de chantier part a ceux qui **voient** le
+contenu dont elle parle : createur, administrateurs de l'organisation, et
+membres ayant le drapeau correspondant (`can_view_comments` pour un message,
+`can_view_photos`, `can_view_documents`, `can_view_steps`) ; tous les membres
+pour une urgence et son fil. Jamais l'auteur, ni ceux qui l'ont bloque.
+
+| `data.type` | Categorie | Envoye a |
+|---|---|---|
+| `comment` | `messages` | lecteurs de la discussion, sauf les personnes mentionnees |
+| `mention` | `mentions` | personnes mentionnees qui lisent le fil (`data`: `comment_id`, `step_id?`, `emergency_id?`) |
+| `emergency`, `emergency-comment` | `emergencies` | participants du chantier |
+| `substep-validated`, `step-validated` | `steps` | `can_view_steps` |
+| `photo` | `photos` | `can_view_photos` |
+| `document` | `documents` | `can_view_documents` |
+| `chantier-member` | `membership` | le membre ajoute |
+| `report` | `reports` | administrateurs de l'organisation (et super admins si escalade) |
+| `feedback` | — | l'auteur du signalement, jamais filtre |
+
+### Preferences de notifications
+
+| Methode | Route | Auth | Body | Description |
+|---|---|---|---|---|
+| GET | `/notification-preferences` | JWT | — | `{ push_enabled, categories: { messages: true, … }, chantiers: [{ chantier_id, chantier_name, level }] }` — `chantiers` ne liste que les chantiers dont le reglage n'est pas « tout ». |
+| PATCH | `/notification-preferences` | JWT | `{ category, enabled }` | Active ou coupe une categorie sur tous les chantiers. Categorie inconnue : **400**. Reponse : le body. |
+| GET | `/notification-preferences/chantiers/:chantierId` | JWT | — | `{ chantier_id, level }`. **404** si l'appelant ne participe pas au chantier. |
+| PUT | `/notification-preferences/chantiers/:chantierId` | JWT | `{ level }` | `all` (defaut), `important` (mentions et urgences seulement) ou `none` (rien). **404** si l'appelant ne participe pas au chantier. |
+
+Categories : `messages`, `mentions`, `emergencies`, `steps`, `photos`,
+`documents`, `membership`, `reports`. Tout est actif par defaut : une categorie
+absente des preferences, un chantier sans reglage, recoivent tout. Une
+notification passe si `push_enabled`, sa categorie, **et** le reglage du
+chantier l'autorisent (`src/lib/notification-preferences.ts`). Une mention passe
+donc meme quand `messages` est coupe, mais pas sur un chantier regle sur `none`.
 
 **Langue.** Chaque destinataire recoit la notification dans la langue de son
 compte (`user.locale`), francais a defaut. Une meme notification de chantier peut

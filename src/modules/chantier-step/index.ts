@@ -225,6 +225,7 @@ export default fp(
               request.user.sub,
               substepValidatedPush({ chantierName, actorName, substepName: updated.name, chantierId, substepId: id }),
               fastify.log,
+              { access: 'view_steps' },
             );
           })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
         }
@@ -260,6 +261,7 @@ export default fp(
               request.user.sub,
               stepValidatedPush({ chantierName, actorName, stepName: updated.name, chantierId, stepId: id }),
               fastify.log,
+              { access: 'view_steps' },
             );
           })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
         }

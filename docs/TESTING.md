@@ -1,6 +1,6 @@
 # Tests
 
-581 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+613 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 
@@ -35,6 +35,7 @@ l'etage integration.
 | `mail-transport.test.ts` | Acheminement des e-mails : choix du transport, version texte, expediteur |
 | `session-cache.test.ts` | Cache des sessions : peremption, separation des plateformes, invalidation |
 | `email.test.ts` | Normalisation des adresses e-mail : minuscules, espaces, validation |
+| `mentions.test.ts` | Syntaxe des mentions : qui est mentionne, ce qui n'en est pas une, texte lisible |
 
 **Integration** (`tests/integration/`) — application complete + base.
 
@@ -48,6 +49,7 @@ l'etage integration.
 | `files.test.ts` | Acces aux fichiers : la seule route sans cle d'API, protegee par le seul jeton signe |
 | `feedback.test.ts` | Signalements : depot, cloisonnement auteur/support, reponse, notification a l'auteur |
 | `push.test.ts` | Envoi des notifications : une langue par destinataire, exclusion de l'acteur, refus des notifications |
+| `notification-preferences.test.ts` | Preferences par categorie et par chantier, destinataires limites a ceux qui voient le contenu, mentions et personnes mentionnables |
 | `block.test.ts` | Blocage : messages, photos et fil des urgences caches a celui qui bloque seulement, deblocage, profil |
 | `report.test.ts` | Signalements : cible visible du rapporteur, personne visee jamais destinataire, remontee a la console, traitement |
 | `comment.test.ts` | Discussions : citation d'un message du meme chantier, reactions comptees par emoji, interrupteur, droits, fil general |

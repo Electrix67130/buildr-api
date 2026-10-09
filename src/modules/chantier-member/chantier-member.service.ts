@@ -1,6 +1,6 @@
 import { Knex } from 'knex';
 import BaseService, { PaginationOptions, PaginatedResult } from '@/lib/base-service';
-import { ChantierMemberRow } from './chantier-member.schema';
+import { ChantierMemberRow, MentionableUser } from './chantier-member.schema';
 
 type Role = 'manager' | 'ouvrier' | 'client' | 'gestionnaire_reseau';
 
@@ -130,6 +130,17 @@ class ChantierMemberService extends BaseService<ChantierMemberRow> {
   }
 
   /** Renvoie la propre ligne du user sur un chantier (avec infos user jointes), null sinon. */
+  /** Les comptes actifs parmi `userIds`, avec leur nom seulement, par ordre alphabetique. */
+  async findMentionable(userIds: string[]): Promise<MentionableUser[]> {
+    if (userIds.length === 0) return [];
+    return this.db('user')
+      .whereIn('id', userIds)
+      .where({ is_active: true })
+      .whereNull('deleted_at')
+      .orderBy([{ column: 'first_name' }, { column: 'last_name' }])
+      .select('id', 'first_name', 'last_name');
+  }
+
   async findOwnWithUser(
     userId: string,
     chantierId: string,

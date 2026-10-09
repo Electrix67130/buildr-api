@@ -76,6 +76,7 @@ export default fp(
           request.user.sub,
           documentAddedPush({ chantierName, actorName, documentName: data.name, chantierId: data.chantier_id }),
           fastify.log,
+          { access: 'view_documents' },
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
       return reply.code(201).send(doc);

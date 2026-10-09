@@ -1,5 +1,6 @@
 import { MAIL_LOCALES, isMailLocale, type MailLocale } from './mail-i18n';
 import { truncate } from './push-helpers';
+import { mentionsToText } from './mentions';
 import type { PushPayload } from './push-notifications';
 
 /**
@@ -36,6 +37,8 @@ interface PushStrings {
   /** Un membre a signale un contenu ou une personne. */
   reportTitle: string;
   reportBody: (where: string) => string;
+  /** Quelqu'un vous a mentionne dans un message. */
+  mentioned: (actor: string) => string;
 }
 
 export const PUSH: Record<PushLocale, PushStrings> = {
@@ -52,6 +55,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Réponse à votre signalement',
     reportTitle: 'Signalement',
     reportBody: (where) => `Un contenu ou un membre a été signalé sur ${where}. À examiner.`,
+    mentioned: (a) => `${a} vous a mentionné`,
   },
   en: {
     memberAdded: (a) => `${a} added you to this site`,
@@ -66,6 +70,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Reply to your report',
     reportTitle: 'Report',
     reportBody: (where) => `Content or a member has been reported on ${where}. Please review.`,
+    mentioned: (a) => `${a} mentioned you`,
   },
   de: {
     memberAdded: (a) => `${a} hat Sie zu dieser Baustelle hinzugefügt`,
@@ -80,6 +85,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Antwort auf Ihre Meldung',
     reportTitle: 'Meldung',
     reportBody: (where) => `Auf ${where} wurde ein Inhalt oder ein Mitglied gemeldet. Bitte prüfen.`,
+    mentioned: (a) => `${a} hat Sie erwähnt`,
   },
   es: {
     memberAdded: (a) => `${a} le ha añadido a esta obra`,
@@ -94,6 +100,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Respuesta a su incidencia',
     reportTitle: 'Denuncia',
     reportBody: (where) => `Se ha denunciado un contenido o un miembro en ${where}. Por favor, revíselo.`,
+    mentioned: (a) => `${a} le ha mencionado`,
   },
   it: {
     memberAdded: (a) => `${a} l'ha aggiunta a questo cantiere`,
@@ -108,6 +115,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Risposta alla sua segnalazione',
     reportTitle: 'Segnalazione',
     reportBody: (where) => `Un contenuto o un membro è stato segnalato su ${where}. Da esaminare.`,
+    mentioned: (a) => `${a} l'ha menzionata`,
   },
   pt: {
     memberAdded: (a) => `${a} adicionou-o a esta obra`,
@@ -122,6 +130,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Resposta à sua comunicação',
     reportTitle: 'Denúncia',
     reportBody: (where) => `Um conteúdo ou um membro foi denunciado em ${where}. Por favor, verifique.`,
+    mentioned: (a) => `${a} mencionou-o`,
   },
   tr: {
     memberAdded: (a) => `${a} sizi bu şantiyeye ekledi`,
@@ -136,6 +145,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Bildiriminize yanıt',
     reportTitle: 'Bildirim',
     reportBody: (where) => `${where} üzerinde bir içerik veya üye bildirildi. Lütfen inceleyin.`,
+    mentioned: (a) => `${a} sizden bahsetti`,
   },
   pl: {
     // Le polonais accorde ses participes au genre de la personne. Plutot que de
@@ -153,6 +163,7 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     feedbackReply: 'Odpowiedź na Twoje zgłoszenie',
     reportTitle: 'Zgłoszenie',
     reportBody: (where) => `Na ${where} zgłoszono treść lub członka. Prosimy o sprawdzenie.`,
+    mentioned: (a) => `${a} — oznaczono Cię w wiadomości`,
   },
 };
 
@@ -266,13 +277,41 @@ export function commentPush(params: {
 }): PushPayload {
   return {
     title: `${params.onEmergency ? '🚨' : '💬'} ${params.chantierName}`,
-    body: `${params.actorName} : ${truncate(params.content, 100)}`,
+    body: `${params.actorName} : ${truncate(mentionsToText(params.content), 100)}`,
     data: {
       type: params.onEmergency ? 'emergency-comment' : 'comment',
       chantier_id: params.chantierId,
       ...(params.emergencyId ? { emergency_id: params.emergencyId } : {}),
     },
   };
+}
+
+/**
+ * Mention dans un message — d'une discussion de chantier ou d'une urgence.
+ *
+ * Elle passe meme quand les messages ordinaires sont coupes : etre interpelle
+ * par son nom n'est pas du bruit. `data` dit ou ouvrir l'application.
+ */
+export function mentionPush(params: {
+  chantierName: string;
+  actorName: string;
+  content: string;
+  chantierId: string;
+  commentId: string;
+  stepId?: string | null;
+  emergencyId?: string;
+}) {
+  return (locale: string): PushPayload => ({
+    title: `@ ${params.chantierName}`,
+    body: `${strings(locale).mentioned(params.actorName)} : ${truncate(mentionsToText(params.content), 90)}`,
+    data: {
+      type: 'mention',
+      chantier_id: params.chantierId,
+      comment_id: params.commentId,
+      ...(params.stepId ? { step_id: params.stepId } : {}),
+      ...(params.emergencyId ? { emergency_id: params.emergencyId } : {}),
+    },
+  });
 }
 
 /**

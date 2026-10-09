@@ -77,6 +77,7 @@ export default fp(
           request.user.sub,
           photoAddedPush({ chantierName, actorName, chantierId: data.chantier_id }),
           fastify.log,
+          { access: 'view_photos' },
         );
       })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
       return reply.code(201).send(photo);

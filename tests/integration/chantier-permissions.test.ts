@@ -303,4 +303,62 @@ describe('Permissions par chantier', () => {
       jetonFrais(servies[1].url, 'u2.jpg');
     });
   });
+
+  describe('Droits par defaut a l\'ajout', () => {
+    /** Ajout avec le seul role, comme le fait l'application pour un membre interne. */
+    const ajouterAvecRole = async (user: TestUser, role: string) => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/chantier-members',
+        headers: auth(admin.token),
+        payload: { chantier_id: chantierId, user_id: user.id, role },
+      });
+      expect(res.statusCode).toBe(201);
+      return res.json();
+    };
+
+    it('un gestionnaire reseau ne recoit que les documents', async () => {
+      // Le schema forcait tous les droits de lecture a vrai et ecrasait ceux du
+      // role : un gestionnaire ajoute depuis l'application lisait les
+      // discussions internes, les photos et les etapes.
+      const membre = await ajouterAvecRole(ouvrier, 'gestionnaire_reseau');
+      expect(membre).toMatchObject({
+        can_view_comments: false,
+        can_view_photos: false,
+        can_view_documents: true,
+        can_view_steps: false,
+        can_view_team: false,
+        can_edit: false,
+      });
+      const lecture = await app.inject({ method: 'GET', url: `/comments?chantier_id=${chantierId}`, headers: auth(ouvrier.token) });
+      expect(lecture.statusCode).toBe(403);
+    });
+
+    it('un client ne recoit ni les documents ni les etapes', async () => {
+      const membre = await ajouterAvecRole(ouvrier, 'client');
+      expect(membre).toMatchObject({ can_view_comments: true, can_view_photos: true, can_view_documents: false, can_view_steps: false });
+    });
+
+    it('un ouvrier lit tout, mais ne modifie pas sans qu\'on le lui ouvre', async () => {
+      const membre = await ajouterAvecRole(ouvrier, 'ouvrier');
+      expect(membre).toMatchObject({
+        can_view_comments: true,
+        can_view_photos: true,
+        can_view_documents: true,
+        can_view_steps: true,
+        can_view_team: true,
+        can_edit: false,
+      });
+    });
+
+    it('des droits precises a l\'ajout l\'emportent sur ceux du role', async () => {
+      const membre = await app.inject({
+        method: 'POST',
+        url: '/chantier-members',
+        headers: auth(admin.token),
+        payload: { chantier_id: chantierId, user_id: ouvrier.id, role: 'gestionnaire_reseau', can_view_comments: true },
+      });
+      expect(membre.json()).toMatchObject({ can_view_comments: true, can_view_photos: false });
+    });
+  });
 });

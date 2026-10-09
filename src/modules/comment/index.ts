@@ -4,9 +4,7 @@ import CommentService from './comment.service';
 import { createCommentSchema, updateCommentSchema, reactionSchema } from './comment.schema';
 import { requirePermission } from '@/lib/permissions';
 import { emitToChantier } from '@/lib/realtime-hub';
-import { sendPushToChantier } from '@/lib/push-notifications';
-import { commentPush } from '@/lib/push-i18n';
-import { getActorAndChantierNames } from '@/lib/push-helpers';
+import { notifyMessage } from '@/lib/message-notifications';
 
 const byChantierSchema = z.object({
   chantier_id: z.string().uuid(),
@@ -70,16 +68,13 @@ export default fp(
         actor_id: request.user.sub,
       }).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
       // Push notification (fire-and-forget, ne bloque pas la reponse).
-      (async () => {
-        const { actorName, chantierName } = await getActorAndChantierNames(fastify.db, request.user.sub, data.chantier_id);
-        await sendPushToChantier(
-          fastify.db,
-          data.chantier_id,
-          request.user.sub,
-          commentPush({ chantierName, actorName, content: data.content, chantierId: data.chantier_id }),
-          fastify.log,
-        );
-      })().catch((err) => fastify.log.error({ err }, 'Push send failed'));
+      notifyMessage(fastify.db, fastify.log, {
+        chantierId: data.chantier_id,
+        authorId: request.user.sub,
+        commentId: comment.id,
+        content: data.content,
+        stepId: data.step_id,
+      }).catch((err) => fastify.log.error({ err }, 'Push send failed'));
       return reply.code(201).send(comment);
     });
 
@@ -118,6 +113,17 @@ export default fp(
         resource_id: id,
         actor_id: request.user.sub,
       }).catch((err) => fastify.log.error({ err }, 'WS emit failed'));
+      // Seules les personnes nouvellement mentionnees sont prevenues.
+      if (data.content !== undefined) {
+        notifyMessage(fastify.db, fastify.log, {
+          chantierId: existing.chantier_id,
+          authorId: request.user.sub,
+          commentId: id,
+          content: data.content,
+          previousContent: existing.content,
+          stepId: existing.step_id,
+        }).catch((err) => fastify.log.error({ err }, 'Push send failed'));
+      }
       return comment;
     });
 
