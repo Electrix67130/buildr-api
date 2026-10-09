@@ -512,11 +512,28 @@ Etapes (et sous-etapes a checkbox) attachees a un chantier. Permissions :
 
 ### Droits a l'ajout d'un membre
 
-`POST /chantier-members` sans drapeau `can_view_*` applique les droits du role
-(`DEFAULT_PERMISSIONS`, `chantier-member.service.ts`) : un gestionnaire reseau ne
-voit que les documents, un client ni les documents ni les etapes. Un drapeau
-precise dans le body l'emporte. `can_edit` vaut `false` sauf s'il est precise,
-quel que soit le role.
+`POST /chantier-members` applique, pour chaque drapeau absent du body, les
+droits de depart du role dans l'organisation du chantier (voir « Droits par
+defaut des roles »). Un drapeau precise l'emporte. Un changement de role
+(`PATCH` avec `role`) applique de meme les droits du nouveau role.
+
+---
+
+## Droits par defaut des roles
+
+Chaque organisation regle les droits de depart d'un membre de chantier selon
+son role (`manager`, `ouvrier`, `client`, `gestionnaire_reseau`). Reserve aux
+administrateurs de l'organisation active, sinon **403**.
+
+| Methode | Route | Auth | Body | Description |
+|---|---|---|---|---|
+| GET | `/role-permissions` | JWT | — | Les quatre roles : `{ role, can_view_comments, can_view_photos, can_view_documents, can_view_steps, can_view_team, can_edit, customized, member_count }`. `customized: false` = valeurs d'origine ; `member_count` = membres de ce role sur les chantiers de l'organisation. |
+| PUT | `/role-permissions/:role` | JWT | les six drapeaux, tous requis | Enregistre le reglage **et l'applique a tous les membres du role** sur les chantiers de l'organisation (les ajustements individuels sont remplaces). Reponse : le reglage + `updated_members`. Emet `chantier-member.updated` sur chaque chantier touche. |
+| DELETE | `/role-permissions/:role` | JWT | — | Retour aux valeurs d'origine, appliquees de meme a tous les membres du role. Reponse : `{ role, updated_members }`. |
+
+Valeurs d'origine (`src/lib/role-permissions.ts`) : manager et ouvrier voient
+tout ; client voit discussions, photos et equipe ; gestionnaire reseau voit
+seulement les documents. `can_edit` est `false` pour tous.
 
 ### Les permissions d'un administrateur ne se modifient pas
 

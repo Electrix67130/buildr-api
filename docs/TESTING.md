@@ -1,6 +1,6 @@
 # Tests
 
-613 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+621 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 
@@ -53,6 +53,7 @@ l'etage integration.
 | `block.test.ts` | Blocage : messages, photos et fil des urgences caches a celui qui bloque seulement, deblocage, profil |
 | `report.test.ts` | Signalements : cible visible du rapporteur, personne visee jamais destinataire, remontee a la console, traitement |
 | `comment.test.ts` | Discussions : citation d'un message du meme chantier, reactions comptees par emoji, interrupteur, droits, fil general |
+| `role-permissions.test.ts` | Droits par defaut des roles : reserve aux administrateurs, applique aux nouveaux membres et a tous les membres du role, cloisonne par organisation |
 | `chantier-permissions.test.ts` | Droits fins au sein d'un chantier : un drapeau ouvre une ressource et une seule |
 | `team.test.ts` | Equipes : composition, consultation, cloisonnement entre organisations |
 | `super-admin.test.ts` | Console Buildr : garde sur chaque route, usurpation d'identite, coupure de compte, journal d'audit |

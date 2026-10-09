@@ -1,74 +1,34 @@
 import { Knex } from 'knex';
 import BaseService, { PaginationOptions, PaginatedResult } from '@/lib/base-service';
 import { ChantierMemberRow, MentionableUser } from './chantier-member.schema';
+import { rolePermissionsFor, type ChantierRole } from '@/lib/role-permissions';
 
-type Role = 'manager' | 'ouvrier' | 'client' | 'gestionnaire_reseau';
-
-/** Default permissions per role */
-export const DEFAULT_PERMISSIONS: Record<
-  Role,
-  Pick<
-    ChantierMemberRow,
-    | 'can_view_comments'
-    | 'can_view_photos'
-    | 'can_view_documents'
-    | 'can_view_steps'
-    | 'can_view_team'
-    | 'can_edit'
-  >
-> = {
-  manager: {
-    can_view_comments: true,
-    can_view_photos: true,
-    can_view_documents: true,
-    can_view_steps: true,
-    can_view_team: true,
-    can_edit: true,
-  },
-  ouvrier: {
-    can_view_comments: true,
-    can_view_photos: true,
-    can_view_documents: true,
-    can_view_steps: true,
-    can_view_team: true,
-    can_edit: true,
-  },
-  client: {
-    can_view_comments: true,
-    can_view_photos: true,
-    can_view_documents: false,
-    can_view_steps: false,
-    can_view_team: true,
-    can_edit: false,
-  },
-  // Gestionnaire reseau : acces minimal — uniquement les DICT (filtre serveur).
-  // Pas de Equipe (perm desactivee). Le reste est configurable comme un client.
-  gestionnaire_reseau: {
-    can_view_comments: false,
-    can_view_photos: false,
-    can_view_documents: true,
-    can_view_steps: false,
-    can_view_team: false,
-    can_edit: false,
-  },
-};
+type Role = ChantierRole;
 
 class ChantierMemberService extends BaseService<ChantierMemberRow> {
   constructor(db: Knex) {
     super(db, 'chantier_member');
   }
 
-  /** Override create to apply role-based default permissions */
-  async create(data: Partial<ChantierMemberRow>): Promise<ChantierMemberRow> {
+  /**
+   * Ajout d'un membre : les droits de depart de son role dans l'organisation du
+   * chantier, sauf ceux precises dans `data`.
+   */
+  async createWithRoleDefaults(organizationId: string, data: Partial<ChantierMemberRow>): Promise<ChantierMemberRow> {
     const role = (data.role as Role) || 'ouvrier';
-    const defaults = DEFAULT_PERMISSIONS[role];
-    return super.create({ ...defaults, ...data });
+    const defaults = await rolePermissionsFor(this.db, organizationId, role);
+    return super.create({ ...defaults, ...stripUndefined(data) });
   }
 
-  /** When changing role, reset permissions to role defaults unless explicitly overridden */
-  async changeRole(id: string, role: Role, overrides: Partial<ChantierMemberRow> = {}): Promise<ChantierMemberRow | undefined> {
-    const defaults = DEFAULT_PERMISSIONS[role];
-    return this.update(id, { role, ...defaults, ...overrides });
+  /** Changement de role : les droits de depart du nouveau role, sauf ceux precises. */
+  async changeRole(
+    organizationId: string,
+    id: string,
+    role: Role,
+    overrides: Partial<ChantierMemberRow> = {},
+  ): Promise<ChantierMemberRow | undefined> {
+    const defaults = await rolePermissionsFor(this.db, organizationId, role);
+    return this.update(id, { role, ...defaults, ...stripUndefined(overrides) });
   }
 
   /** List members of a chantier with user info */
@@ -168,3 +128,8 @@ class ChantierMemberService extends BaseService<ChantierMemberRow> {
 }
 
 export default ChantierMemberService;
+
+/** Un champ absent ne doit pas ecraser la valeur par defaut du role. */
+function stripUndefined<T extends object>(data: T): Partial<T> {
+  return Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as Partial<T>;
+}

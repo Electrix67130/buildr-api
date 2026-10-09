@@ -551,6 +551,31 @@ gerees de l'API **et** les plantages remontes par les clients via
 
 ---
 
+## Table : `organization_role_permission`
+
+Droits de depart d'un membre de chantier selon son role, propres a une
+organisation. Une ligne n'existe que pour un role personnalise ; sans elle, les
+valeurs de `src/lib/role-permissions.ts` s'appliquent.
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | uuid | PK, default uuid |
+| `organization_id` | uuid | NOT NULL, FK -> `organization.id` CASCADE |
+| `role` | varchar(32) | NOT NULL, CHECK `manager` \| `ouvrier` \| `client` \| `gestionnaire_reseau` |
+| `can_view_comments` | boolean | NOT NULL |
+| `can_view_photos` | boolean | NOT NULL |
+| `can_view_documents` | boolean | NOT NULL |
+| `can_view_steps` | boolean | NOT NULL |
+| `can_view_team` | boolean | NOT NULL |
+| `can_edit` | boolean | NOT NULL |
+| `created_at` | timestamp | NOT NULL, default now |
+| `updated_at` | timestamp | NOT NULL, default now |
+
+**Unicite :** `uq_organization_role_permission` (organization_id, role).
+**Migration :** `20261009140000_create_organization_role_permission.js`.
+
+---
+
 ## Table : `user_block`
 
 | Colonne | Type | Contraintes |

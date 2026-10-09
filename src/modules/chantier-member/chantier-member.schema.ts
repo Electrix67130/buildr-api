@@ -4,18 +4,16 @@ export const createChantierMemberSchema = z.object({
   chantier_id: z.string().uuid(),
   user_id: z.string().uuid(),
   role: z.enum(['manager', 'ouvrier', 'client', 'gestionnaire_reseau']).optional().default('ouvrier'),
-  // Droits de lecture absents : ceux du role s'appliquent (DEFAULT_PERMISSIONS).
-  // Ils valaient tous `true` ici, ce qui ecrasait les valeurs du role : un
-  // gestionnaire reseau ajoute sans droits precises voyait les discussions,
-  // les photos et les etapes.
+  // Droits absents : ceux du role dans l'organisation s'appliquent
+  // (`lib/role-permissions.ts`). Ils valaient tous `true` ici, ce qui ecrasait
+  // les valeurs du role : un gestionnaire reseau ajoute sans droits precises
+  // voyait les discussions, les photos et les etapes.
   can_view_comments: z.boolean().optional(),
   can_view_photos: z.boolean().optional(),
   can_view_documents: z.boolean().optional(),
   can_view_steps: z.boolean().optional(),
   can_view_team: z.boolean().optional(),
-  // Modifier reste refuse par defaut, quel que soit le role : c'est ce qui
-  // s'appliquait jusqu'ici, et ouvrir ce droit se decide explicitement.
-  can_edit: z.boolean().optional().default(false),
+  can_edit: z.boolean().optional(),
 });
 
 export const updateChantierMemberSchema = z.object({

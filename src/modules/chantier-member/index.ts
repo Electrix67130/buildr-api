@@ -114,7 +114,7 @@ export default fp(
         return reply.code(409).send({ statusCode: 409, error: 'Conflict', message: 'Cet utilisateur est déjà membre du chantier' });
       }
 
-      const member = await service.create(data);
+      const member = await service.createWithRoleDefaults(chantier.organization_id, data);
       fireAndForget(() => syncMemberAdded(fastify.db, member.chantier_id, member.user_id, fastify.log), fastify.log);
       emitToChantier(fastify.db, member.chantier_id, {
         type: 'chantier-member.created',
@@ -158,7 +158,12 @@ export default fp(
 
       // If role is changing, reset permissions to role defaults (unless explicitly overridden)
       const member = data.role && data.role !== existing.role
-        ? await service.changeRole(id, data.role, data)
+        ? await service.changeRole(
+            (await fastify.db('chantier').where({ id: existing.chantier_id }).select('organization_id').first()).organization_id,
+            id,
+            data.role,
+            data,
+          )
         : await service.update(id, data);
       emitToChantier(fastify.db, existing.chantier_id, {
         type: 'chantier-member.updated',
