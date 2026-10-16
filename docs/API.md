@@ -879,6 +879,8 @@ automatiquement. Ici c'est un humain qui ecrit, et il attend une reponse.
 }
 ```
 
+Chaque nouveau signalement previent le support, en arriere-plan : un e-mail a `SUPPORT_EMAIL` (defaut `support@getbuildr.fr`, langue `SUPPORT_LOCALE`) avec l'auteur en `Reply-To`, et un push `{ type: "feedback-new", feedback_id }` a tous les super admins actifs (sauf l'auteur).
+
 `organization_id` est deduit de l'organisation active — il n'est pas accepte dans
 le body. Un utilisateur sans organisation active peut deposer malgre tout : c'est
 peut-etre precisement de cela qu'il veut parler. `locale` retombe sur la langue du

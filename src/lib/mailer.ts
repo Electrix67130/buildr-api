@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import env from '@/config/env';
-import { INVITATION, PASSWORD_RESET, DATE_TAG, isMailLocale, MailLocale } from '@/lib/mail-i18n';
+import { INVITATION, PASSWORD_RESET, FEEDBACK_ALERT, DATE_TAG, isMailLocale, MailLocale } from '@/lib/mail-i18n';
 
 const transporter = env.SMTP_HOST
   ? nodemailer.createTransport({
@@ -21,16 +21,25 @@ interface SendMailOptions {
   to: string;
   subject: string;
   html: string;
+  /** Adresse de reponse, quand ce n'est pas l'expediteur (l'auteur d'un signalement). */
+  replyTo?: string;
 }
 
-async function sendViaResend({ to, subject, html }: SendMailOptions): Promise<void> {
+async function sendViaResend({ to, subject, html, replyTo }: SendMailOptions): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from: fromAddress(), to, subject, html, text: htmlToText(html) }),
+    body: JSON.stringify({
+      from: fromAddress(),
+      to,
+      subject,
+      html,
+      text: htmlToText(html),
+      ...(replyTo ? { reply_to: replyTo } : {}),
+    }),
   });
 
   if (!res.ok) {
@@ -75,10 +84,10 @@ function fromAddress(): string {
   return env.SMTP_FROM.includes('<') ? env.SMTP_FROM : `Buildr <${env.SMTP_FROM}>`;
 }
 
-export async function sendMail({ to, subject, html }: SendMailOptions): Promise<void> {
+export async function sendMail({ to, subject, html, replyTo }: SendMailOptions): Promise<void> {
   // Prod : Resend (HTTP API). Dev : SMTP si configuré. Sinon : log.
   if (env.RESEND_API_KEY) {
-    await sendViaResend({ to, subject, html });
+    await sendViaResend({ to, subject, html, replyTo });
     return;
   }
 
@@ -94,6 +103,7 @@ export async function sendMail({ to, subject, html }: SendMailOptions): Promise<
     subject,
     html,
     text: htmlToText(html),
+    ...(replyTo ? { replyTo } : {}),
   });
 }
 
@@ -231,6 +241,68 @@ export function buildPasswordResetEmail(params: {
         <p style="color: #A8A29E; font-size: 12px; text-align: center; margin-top: 24px;">
           ${T.tagline}
         </p>
+      </div>
+    `,
+  };
+}
+
+/**
+ * Alerte a la boite support : un utilisateur vient de deposer un signalement.
+ *
+ * Tout le texte libre (sujet, message, nom, organisation) vient de l'auteur :
+ * echappe comme pour l'invitation, sinon un signalement deviendrait un moyen de
+ * glisser du HTML dans notre propre boite.
+ */
+export function buildFeedbackAlertEmail(params: {
+  feedbackId: string;
+  type: 'bug' | 'suggestion';
+  subject: string;
+  message: string;
+  authorName: string;
+  authorEmail: string | null;
+  organizationName: string | null;
+  platform: string | null;
+  appVersion: string | null;
+  screen: string | null;
+  /** Langue dans laquelle l'auteur a ecrit. */
+  feedbackLocale: string;
+  /** Langue du support, qui lit l'alerte. */
+  locale?: string;
+}): { subject: string; html: string } {
+  const lang: MailLocale = isMailLocale(params.locale) ? params.locale : 'fr';
+  const T = FEEDBACK_ALERT[lang];
+  const kind = T.kinds[params.type];
+  const consoleLink = `${env.APP_URL}/admin/feedback`;
+  const author = escapeHtml(params.authorName) + (params.authorEmail ? ` &lt;${escapeHtml(params.authorEmail)}&gt;` : '');
+  const context = [params.platform, params.appVersion && `v${params.appVersion}`, params.screen, params.feedbackLocale]
+    .filter(Boolean)
+    .map((part) => escapeHtml(String(part)))
+    .join(' · ');
+  const message = escapeHtml(params.message).replace(/\n/g, '<br>');
+
+  return {
+    subject: T.subject(kind, stripTags(params.subject)),
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
+        <div style="background: #FAFAF9; border: 1px solid #E7E5E4; border-radius: 12px; padding: 24px;">
+          <p style="color: #D97706; font-weight: 600; margin: 0 0 8px;">${T.heading(kind)}</p>
+          <h2 style="color: #1C1917; margin: 0 0 16px;">${escapeHtml(params.subject)}</h2>
+          <p style="color: #57534E; line-height: 1.6; margin: 0 0 16px;">${message}</p>
+          <p style="color: #78716C; font-size: 13px; line-height: 1.6; margin: 0;">
+            <strong>${T.from} :</strong> ${author}<br>
+            <strong>${T.organization} :</strong> ${params.organizationName ? escapeHtml(params.organizationName) : T.none}<br>
+            <strong>${T.context} :</strong> ${context || T.none}
+          </p>
+          <div style="text-align: center; margin: 24px 0 8px;">
+            <a href="${consoleLink}"
+               style="display: inline-block; background: #D97706; color: white; text-decoration: none;
+                      padding: 12px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+              ${T.cta}
+            </a>
+          </div>
+          <p style="color: #A8A29E; font-size: 12px;">${T.replyHint}</p>
+        </div>
+        <p style="color: #A8A29E; font-size: 12px; text-align: center; margin-top: 24px;">${T.tagline}</p>
       </div>
     `,
   };

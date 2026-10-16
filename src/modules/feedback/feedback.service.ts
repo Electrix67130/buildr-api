@@ -129,6 +129,11 @@ class FeedbackService extends BaseService<FeedbackRow> {
     return row;
   }
 
+  /** Les super admins actifs : ce sont eux qui traitent les signalements. */
+  async superAdminIds(): Promise<string[]> {
+    return (await this.db('user').where({ is_super_admin: true, is_active: true }).pluck('id')) as string[];
+  }
+
   /** Compte les signalements par statut, pour la pastille de la console. */
   async countByStatus(): Promise<Record<string, number>> {
     const rows = (await this.db('feedback').select('status').count('* as count').groupBy('status')) as {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildInvitationEmail, buildPasswordResetEmail } from '@/lib/mailer';
-import { INVITATION, PASSWORD_RESET } from '@/lib/mail-i18n';
+import { buildInvitationEmail, buildPasswordResetEmail, buildFeedbackAlertEmail } from '@/lib/mailer';
+import { INVITATION, PASSWORD_RESET, FEEDBACK_ALERT, MAIL_LOCALES } from '@/lib/mail-i18n';
 
 /**
  * Contenu des e-mails transactionnels.
@@ -113,5 +113,50 @@ describe('E-mail de reinitialisation de mot de passe', () => {
     expect(html).toContain(PASSWORD_RESET[langue].cta);
     expect(html).toContain('/reset-password/jeton-abc');
     expect(html).not.toContain('undefined');
+  });
+});
+
+describe('Alerte support : nouveau signalement', () => {
+  const signalement = {
+    feedbackId: 'f1',
+    type: 'bug' as const,
+    subject: 'La galerie reste vide',
+    message: 'Ligne 1\nLigne 2',
+    authorName: 'Marie Durand',
+    authorEmail: 'marie@exemple.fr',
+    organizationName: 'Alpha TP',
+    platform: 'mobile',
+    appVersion: '1.1.0',
+    screen: 'chantier/[id]',
+    feedbackLocale: 'fr',
+  };
+
+  it("donne le sujet, l'auteur, l'organisation, la version et le lien vers la console", () => {
+    const { subject, html } = buildFeedbackAlertEmail(signalement);
+    expect(subject).toBe('[Buildr] Nouveau bug : La galerie reste vide');
+    expect(html).toContain('Marie Durand &lt;marie@exemple.fr&gt;');
+    expect(html).toContain('Alpha TP');
+    expect(html).toContain('v1.1.0');
+    expect(html).toContain('Ligne 1<br>Ligne 2');
+    expect(html).toContain('/admin/feedback');
+  });
+
+  it("echappe tout ce que l'auteur a ecrit", () => {
+    const { html } = buildFeedbackAlertEmail({
+      ...signalement,
+      subject: '<b>gras</b>',
+      message: '<a href="https://malveillant/">clic</a>',
+      authorName: '<img src=x>',
+      organizationName: 'Dupont & Fils',
+    });
+    expect(html).not.toContain('<a href="https://malveillant/"');
+    expect(html).not.toContain('<img');
+    expect(html).toContain('Dupont &amp; Fils');
+  });
+
+  it.each(MAIL_LOCALES)('est complete en %s', (langue) => {
+    expect(Object.keys(FEEDBACK_ALERT[langue]).sort()).toEqual(Object.keys(FEEDBACK_ALERT.fr).sort());
+    const { subject } = buildFeedbackAlertEmail({ ...signalement, type: 'suggestion', locale: langue });
+    expect(subject).toContain(FEEDBACK_ALERT[langue].kinds.suggestion);
   });
 });

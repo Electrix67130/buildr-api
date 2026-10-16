@@ -332,6 +332,41 @@ describe('Signalements', () => {
     });
   });
 
+  describe('alerte au support', () => {
+    let envois: { messages: { to: string; title: string; body: string; data: unknown }[] }[];
+
+    beforeEach(async () => {
+      await app.db('push_token').insert({ user_id: superAdmin.id, token: 'ExponentPushToken[support]', platform: 'ios' });
+      envois = [];
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+        envois.push({ messages: JSON.parse(String(init?.body ?? '[]')) });
+        return { ok: true, json: async () => ({ data: [{ status: 'ok' }] }) } as unknown as Response;
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('previent les super admins de chaque nouveau signalement', async () => {
+      const id = (await deposer(ouvrier.token)).json().id;
+      await vi.waitFor(() => expect(envois.length).toBeGreaterThan(0), { timeout: 3000 });
+
+      const message = envois[0].messages[0];
+      expect(message.to).toBe('ExponentPushToken[support]');
+      expect(message.title).toContain('Nouveau bug');
+      expect(message.body).toContain('galerie photos');
+      expect(message.data).toMatchObject({ type: 'feedback-new', feedback_id: id });
+    });
+
+    it("ne previent pas le super admin de son propre signalement", async () => {
+      await deposer(superAdmin.token);
+      await new Promise((r) => setTimeout(r, 300));
+
+      expect(envois).toHaveLength(0);
+    });
+  });
+
   describe("notification a l'auteur", () => {
     let feedbackId: string;
     let envois: { url: string; messages: { to: string; title: string; body: string; data: unknown }[] }[];

@@ -39,6 +39,9 @@ interface PushStrings {
   reportBody: (where: string) => string;
   /** Quelqu'un vous a mentionne dans un message. */
   mentioned: (actor: string) => string;
+  /** Nouveau signalement depose depuis l'app, pour le support. */
+  newBug: string;
+  newSuggestion: string;
 }
 
 export const PUSH: Record<PushLocale, PushStrings> = {
@@ -56,6 +59,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Signalement',
     reportBody: (where) => `Un contenu ou un membre a été signalé sur ${where}. À examiner.`,
     mentioned: (a) => `${a} vous a mentionné`,
+    newBug: 'Nouveau bug',
+    newSuggestion: 'Nouvelle suggestion',
   },
   en: {
     memberAdded: (a) => `${a} added you to this site`,
@@ -71,6 +76,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Report',
     reportBody: (where) => `Content or a member has been reported on ${where}. Please review.`,
     mentioned: (a) => `${a} mentioned you`,
+    newBug: 'New bug',
+    newSuggestion: 'New suggestion',
   },
   de: {
     memberAdded: (a) => `${a} hat Sie zu dieser Baustelle hinzugefügt`,
@@ -86,6 +93,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Meldung',
     reportBody: (where) => `Auf ${where} wurde ein Inhalt oder ein Mitglied gemeldet. Bitte prüfen.`,
     mentioned: (a) => `${a} hat Sie erwähnt`,
+    newBug: 'Neuer Fehler',
+    newSuggestion: 'Neuer Vorschlag',
   },
   es: {
     memberAdded: (a) => `${a} le ha añadido a esta obra`,
@@ -101,6 +110,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Denuncia',
     reportBody: (where) => `Se ha denunciado un contenido o un miembro en ${where}. Por favor, revíselo.`,
     mentioned: (a) => `${a} le ha mencionado`,
+    newBug: 'Nueva incidencia',
+    newSuggestion: 'Nueva sugerencia',
   },
   it: {
     memberAdded: (a) => `${a} l'ha aggiunta a questo cantiere`,
@@ -116,6 +127,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Segnalazione',
     reportBody: (where) => `Un contenuto o un membro è stato segnalato su ${where}. Da esaminare.`,
     mentioned: (a) => `${a} l'ha menzionata`,
+    newBug: 'Nuovo bug',
+    newSuggestion: 'Nuovo suggerimento',
   },
   pt: {
     memberAdded: (a) => `${a} adicionou-o a esta obra`,
@@ -131,6 +144,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Denúncia',
     reportBody: (where) => `Um conteúdo ou um membro foi denunciado em ${where}. Por favor, verifique.`,
     mentioned: (a) => `${a} mencionou-o`,
+    newBug: 'Novo erro',
+    newSuggestion: 'Nova sugestão',
   },
   tr: {
     memberAdded: (a) => `${a} sizi bu şantiyeye ekledi`,
@@ -146,6 +161,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Bildirim',
     reportBody: (where) => `${where} üzerinde bir içerik veya üye bildirildi. Lütfen inceleyin.`,
     mentioned: (a) => `${a} sizden bahsetti`,
+    newBug: 'Yeni hata',
+    newSuggestion: 'Yeni öneri',
   },
   pl: {
     // Le polonais accorde ses participes au genre de la personne. Plutot que de
@@ -164,6 +181,8 @@ export const PUSH: Record<PushLocale, PushStrings> = {
     reportTitle: 'Zgłoszenie',
     reportBody: (where) => `Na ${where} zgłoszono treść lub członka. Prosimy o sprawdzenie.`,
     mentioned: (a) => `${a} — oznaczono Cię w wiadomości`,
+    newBug: 'Nowy błąd',
+    newSuggestion: 'Nowa sugestia',
   },
 };
 
@@ -343,5 +362,14 @@ export function reportPush(params: { where: string; reportId: string }) {
     title: `🚩 ${strings(locale).reportTitle}`,
     body: strings(locale).reportBody(params.where),
     data: { type: 'report', report_id: params.reportId },
+  });
+}
+
+/** Un signalement vient d'etre depose : pour les super admins, qui le traitent dans la console. */
+export function feedbackNewPush(params: { type: 'bug' | 'suggestion'; author: string; subject: string; feedbackId: string }) {
+  return (locale: string): PushPayload => ({
+    title: `${params.type === 'bug' ? '🐞' : '💡'} ${params.type === 'bug' ? strings(locale).newBug : strings(locale).newSuggestion}`,
+    body: `${params.author} — ${truncate(params.subject, 90)}`,
+    data: { type: 'feedback-new', feedback_id: params.feedbackId },
   });
 }

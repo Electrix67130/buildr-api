@@ -1,6 +1,6 @@
 # Tests
 
-621 tests repartis en deux etages : des tests unitaires sur les fonctions pures
+633 tests repartis en deux etages : des tests unitaires sur les fonctions pures
 et des tests d'integration qui jouent de vraies requetes HTTP contre
 l'application complete, branchee sur un vrai PostgreSQL.
 

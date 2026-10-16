@@ -230,6 +230,123 @@ export const PASSWORD_RESET: Record<MailLocale, ResetStrings> = {
   },
 };
 
+interface FeedbackAlertStrings {
+  subject: (kind: string, subject: string) => string;
+  heading: (kind: string) => string;
+  kinds: { bug: string; suggestion: string };
+  from: string;
+  organization: string;
+  context: string;
+  none: string;
+  replyHint: string;
+  cta: string;
+  tagline: string;
+}
+
+/**
+ * Alerte envoyee a la boite support quand un utilisateur depose un signalement.
+ * Lue par l'equipe, pas par l'auteur : la langue est celle du support
+ * (`SUPPORT_LOCALE`), le message de l'auteur reste dans la sienne.
+ */
+export const FEEDBACK_ALERT: Record<MailLocale, FeedbackAlertStrings> = {
+  fr: {
+    subject: (k, s) => `[Buildr] ${k} : ${s}`,
+    heading: (k) => `${k} reçu depuis l'application`,
+    kinds: { bug: 'Nouveau bug', suggestion: 'Nouvelle suggestion' },
+    from: 'De',
+    organization: 'Organisation',
+    context: 'Contexte',
+    none: 'aucune',
+    replyHint: "Répondre à cet e-mail écrit directement à l'auteur. Pour qu'il reçoive la réponse dans l'app, répondez depuis la console.",
+    cta: 'Ouvrir dans la console',
+    tagline: 'Buildr — Gestion de chantiers',
+  },
+  en: {
+    subject: (k, s) => `[Buildr] ${k}: ${s}`,
+    heading: (k) => `${k} received from the app`,
+    kinds: { bug: 'New bug', suggestion: 'New suggestion' },
+    from: 'From',
+    organization: 'Organisation',
+    context: 'Context',
+    none: 'none',
+    replyHint: 'Replying to this email writes directly to the author. To have the reply appear in the app, answer from the console.',
+    cta: 'Open in the console',
+    tagline: 'Buildr — Construction site management',
+  },
+  de: {
+    subject: (k, s) => `[Buildr] ${k}: ${s}`,
+    heading: (k) => `${k} aus der App erhalten`,
+    kinds: { bug: 'Neuer Fehler', suggestion: 'Neuer Vorschlag' },
+    from: 'Von',
+    organization: 'Organisation',
+    context: 'Kontext',
+    none: 'keine',
+    replyHint: 'Eine Antwort auf diese E-Mail geht direkt an den Verfasser. Damit sie in der App erscheint, antworten Sie über die Konsole.',
+    cta: 'In der Konsole öffnen',
+    tagline: 'Buildr — Baustellenverwaltung',
+  },
+  es: {
+    subject: (k, s) => `[Buildr] ${k}: ${s}`,
+    heading: (k) => `${k} recibida desde la aplicación`,
+    kinds: { bug: 'Nueva incidencia', suggestion: 'Nueva sugerencia' },
+    from: 'De',
+    organization: 'Organización',
+    context: 'Contexto',
+    none: 'ninguna',
+    replyHint: 'Responder a este correo escribe directamente al autor. Para que reciba la respuesta en la app, responda desde la consola.',
+    cta: 'Abrir en la consola',
+    tagline: 'Buildr — Gestión de obras',
+  },
+  it: {
+    subject: (k, s) => `[Buildr] ${k}: ${s}`,
+    heading: (k) => `${k} ricevuta dall'app`,
+    kinds: { bug: 'Nuova segnalazione di bug', suggestion: 'Nuovo suggerimento' },
+    from: 'Da',
+    organization: 'Organizzazione',
+    context: 'Contesto',
+    none: 'nessuna',
+    replyHint: "Rispondere a questa e-mail scrive direttamente all'autore. Perché riceva la risposta nell'app, risponda dalla console.",
+    cta: 'Apri nella console',
+    tagline: 'Buildr — Gestione cantieri',
+  },
+  pt: {
+    subject: (k, s) => `[Buildr] ${k}: ${s}`,
+    heading: (k) => `${k} recebida da aplicação`,
+    kinds: { bug: 'Novo erro', suggestion: 'Nova sugestão' },
+    from: 'De',
+    organization: 'Organização',
+    context: 'Contexto',
+    none: 'nenhuma',
+    replyHint: 'Responder a este e-mail escreve diretamente ao autor. Para que receba a resposta na app, responda a partir da consola.',
+    cta: 'Abrir na consola',
+    tagline: 'Buildr — Gestão de obras',
+  },
+  tr: {
+    subject: (k, s) => `[Buildr] ${k}: ${s}`,
+    heading: (k) => `Uygulamadan alındı: ${k}`,
+    kinds: { bug: 'Yeni hata', suggestion: 'Yeni öneri' },
+    from: 'Gönderen',
+    organization: 'Kuruluş',
+    context: 'Bağlam',
+    none: 'yok',
+    replyHint: 'Bu e-postayı yanıtlamak doğrudan yazara yazar. Yanıtın uygulamada görünmesi için konsoldan yanıtlayın.',
+    cta: 'Konsolda aç',
+    tagline: 'Buildr — Şantiye yönetimi',
+  },
+  pl: {
+    subject: (k, s) => `[Buildr] ${k}: ${s}`,
+    heading: (k) => `${k} z aplikacji`,
+    kinds: { bug: 'Nowy błąd', suggestion: 'Nowa sugestia' },
+    from: 'Od',
+    organization: 'Organizacja',
+    context: 'Kontekst',
+    none: 'brak',
+    replyHint: 'Odpowiedź na tego e-maila trafia bezpośrednio do autora. Aby odpowiedź pojawiła się w aplikacji, odpowiedz z konsoli.',
+    cta: 'Otwórz w konsoli',
+    tagline: 'Buildr — Zarządzanie budowami',
+  },
+};
+
 /** Étiquette BCP-47 pour toLocaleDateString, la clé seule suffisant rarement. */
 export const DATE_TAG: Record<MailLocale, string> = {
   fr: 'fr-FR', en: 'en-GB', de: 'de-DE', es: 'es-ES',

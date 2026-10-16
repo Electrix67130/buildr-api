@@ -4,8 +4,10 @@ import FeedbackService from './feedback.service';
 import { createFeedbackSchema, respondFeedbackSchema, listFeedbackSchema } from './feedback.schema';
 import { getActiveMembership } from '@/lib/active-membership';
 import { requireSuperAdmin, logAudit } from '@/lib/super-admin';
-import { sendPushToUser } from '@/lib/push-notifications';
-import { buildFeedbackReplyPush } from '@/lib/push-i18n';
+import { sendPushToUser, sendPushToUsers } from '@/lib/push-notifications';
+import { buildFeedbackReplyPush, feedbackNewPush } from '@/lib/push-i18n';
+import { buildFeedbackAlertEmail, sendMail } from '@/lib/mailer';
+import env from '@/config/env';
 
 const uuidParamSchema = z.object({ id: z.string().uuid() });
 const minePaginationSchema = z.object({
@@ -26,6 +28,52 @@ export default fp(
   (fastify, _opts, done) => {
     const service = new FeedbackService(fastify.db);
     const support = [fastify.authenticate, requireSuperAdmin(fastify)];
+
+    /**
+     * Previent le support d'un nouveau signalement : un e-mail a la boite
+     * support (repondre a l'e-mail ecrit a l'auteur) et un push aux super
+     * admins. Sans cela, un signalement attendait que quelqu'un pense a ouvrir
+     * la console.
+     */
+    const alertSupport = async (feedbackId: string) => {
+      const feedback = await service.findByIdForSupport(feedbackId);
+      if (!feedback) return;
+      const authorName =
+        [feedback.author_first_name, feedback.author_last_name].filter(Boolean).join(' ') || feedback.author_email || '—';
+
+      const envois: Promise<void>[] = [];
+      if (env.SUPPORT_EMAIL) {
+        const { subject, html } = buildFeedbackAlertEmail({
+          feedbackId,
+          type: feedback.type,
+          subject: feedback.subject,
+          message: feedback.message,
+          authorName,
+          authorEmail: feedback.author_email,
+          organizationName: feedback.organization_name,
+          platform: feedback.platform,
+          appVersion: feedback.app_version,
+          screen: feedback.screen,
+          feedbackLocale: feedback.locale,
+          locale: env.SUPPORT_LOCALE,
+        });
+        envois.push(sendMail({ to: env.SUPPORT_EMAIL, subject, html, replyTo: feedback.author_email ?? undefined }));
+      }
+      // L'auteur, s'il est lui-meme super admin, sait deja ce qu'il vient d'ecrire.
+      const recipients = (await service.superAdminIds()).filter((id) => id !== feedback.user_id);
+      envois.push(
+        sendPushToUsers(
+          fastify.db,
+          recipients,
+          feedbackNewPush({ type: feedback.type, author: authorName, subject: feedback.subject, feedbackId }),
+          fastify.log,
+        ),
+      );
+      // Un canal en panne ne doit pas empecher l'autre de partir.
+      for (const result of await Promise.allSettled(envois)) {
+        if (result.status === 'rejected') fastify.log.error({ err: result.reason }, 'Feedback alert failed');
+      }
+    };
 
     // POST /feedbacks — deposer un signalement
     fastify.post('/feedbacks', { preHandler: [fastify.authenticate] }, async (request, reply) => {
@@ -54,6 +102,9 @@ export default fp(
           locale: data.locale ?? auteur?.locale ?? 'fr',
         })
         .returning('*');
+
+      // Detache : l'auteur n'attend ni le serveur d'e-mail ni Expo.
+      alertSupport(feedback.id).catch((err) => fastify.log.error({ err }, 'Feedback alert failed'));
 
       return reply.code(201).send(feedback);
     });

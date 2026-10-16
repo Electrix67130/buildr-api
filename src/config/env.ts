@@ -19,6 +19,11 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().default(''),
   SMTP_FROM: z.string().default('noreply@getbuildr.fr'),
   RESEND_API_KEY: z.string().default(''),
+  /** Boite qui recoit l'alerte de chaque nouveau signalement (bug, suggestion).
+   *  Vide : pas d'e-mail, la console et le push aux super admins restent. */
+  SUPPORT_EMAIL: z.string().default('support@getbuildr.fr'),
+  /** Langue des alertes envoyees a cette boite. */
+  SUPPORT_LOCALE: z.string().default('fr'),
   CORS_ORIGINS: z.string().default(''),
   /** Base publique du dashboard web. Sert aux liens envoyes par email
    *  (invitations, reinitialisation de mot de passe). */
