@@ -200,7 +200,7 @@ exports.seed = async function seed(knex) {
     {
       key: 'vergnes',
       name: 'Lotissement Les Vergnes — terrassement',
-      description: "Terrassement general et fond de forme pour 8 lots. Acces par la rue du Moulin, circulation alternee.",
+      description: "Terrassement général et fond de forme pour 8 lots. Accès par la rue du Moulin, circulation alternée.",
       address: '3 rue du Moulin',
       city: 'Épinal',
       postal_code: '88000',
@@ -213,7 +213,7 @@ exports.seed = async function seed(knex) {
     {
       key: 'golbey',
       name: 'Zone artisanale de Golbey — VRD',
-      description: 'Voirie et reseaux divers sur le lot 3. Coordination avec Enedis pour le raccordement.',
+      description: 'Voirie et réseaux divers sur le lot 3. Coordination avec Enedis pour le raccordement.',
       address: 'Rue de l’Industrie',
       city: 'Golbey',
       postal_code: '88190',
@@ -226,7 +226,7 @@ exports.seed = async function seed(knex) {
     {
       key: 'deyvillers',
       name: 'Rue des Jardins — assainissement',
-      description: 'Reprise du collecteur eaux usees sur 120 metres lineaires. Chantier receptionne.',
+      description: 'Reprise du collecteur eaux usées sur 120 mètres linéaires. Chantier réceptionné.',
       address: 'Rue des Jardins',
       city: 'Deyvillers',
       postal_code: '88000',
