@@ -23,17 +23,15 @@ const invitation = (extra: Partial<Parameters<typeof buildInvitationEmail>[0]> =
   });
 
 describe("E-mail d'invitation", () => {
-  it('dirige le bouton principal vers le web, pas vers le lien profond', () => {
+  it('ne propose que le lien web, sans lien profond', () => {
     // Regression : le bouton pointait sur buildr://, que seul un telephone
     // ayant deja l'app peut ouvrir. Or on ouvre le plus souvent son courrier
-    // depuis un poste de bureau — le bouton ne faisait rien.
+    // depuis un poste de bureau — le bouton ne faisait rien. Le lien https
+    // ouvre lui-meme l'app quand elle est installee (liens universels).
     const { html } = invitation();
 
     expect(html).toContain('href="http://localhost:3001/invite/jeton-123"');
-    expect(html).toContain('buildr://invite/jeton-123');
-
-    // Le lien web doit venir avant le lien profond : c'est le bouton.
-    expect(html.indexOf('http://localhost:3001/invite/')).toBeLessThan(html.indexOf('buildr://invite/'));
+    expect(html).not.toContain('buildr://');
   });
 
   it('ecrit le message dans la langue choisie par celui qui invite', () => {

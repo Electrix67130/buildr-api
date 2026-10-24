@@ -620,8 +620,9 @@ l'inscription : depuis l'invitation quand il y en a une, sinon depuis le champ
 `locale` de `POST /auth/register`.
 
 Les deux mails pointent leur bouton principal sur le **web**
-(`${APP_URL}/invite/<token>` et `${APP_URL}/reset-password/<token>`), le lien
-profond `buildr://` restant offert en dessous. Un lien profond n'est ouvrable
+(`${APP_URL}/invite/<token>` et `${APP_URL}/reset-password/<token>`). Seul le
+mail de reinitialisation offre encore le lien profond `buildr://` en dessous :
+les liens universels ne couvrent que `/invite/*`. Un lien profond n'est ouvrable
 que par un telephone ou l'application est installee, alors que ces deux
 parcours commencent souvent sur un ordinateur.
 
@@ -647,7 +648,11 @@ deja installee. Sur un ordinateur, dans un webmail ou sur un mobile sans l'app,
 cliquer ne produisait rien — et l'invite en concluait que son lien etait mort.
 Or le premier acces se fait le plus souvent depuis un poste de bureau.
 
-Le lien profond reste propose en dessous, pour qui a deja l'application.
+Le mail ne contient plus de lien profond. Depuis l'app 1.2, le lien https
+ouvre lui-meme l'application quand elle est installee, et `buildr://` ne menait
+nulle part sans elle. La page web garde un lien discret « Deja installee ?
+Ouvrir dans l'app » pour les navigateurs integres (Gmail, Outlook) qui ne
+passent pas la main a l'application.
 
 Depuis l'app 1.2, le lien https ouvre lui-meme l'application quand elle est
 installee : liens universels iOS et App Links Android, limites a `/invite/*`.

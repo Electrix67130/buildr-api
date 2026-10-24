@@ -149,10 +149,9 @@ export function buildInvitationEmail(params: {
   const lang: MailLocale = isMailLocale(params.locale) ? params.locale : 'fr';
   const T = INVITATION[lang];
 
-  // Le bouton principal pointe sur le WEB, pas sur le lien profond : `buildr://`
-  // n'est ouvrable que par un telephone ou l'app est deja installee, et le
-  // premier acces se fait le plus souvent depuis un poste de bureau.
-  const appLink = `buildr://invite/${params.token}`;
+  // Un seul lien, https : il ouvre l'app quand elle est installee (liens
+  // universels, App Links sur /invite/*), la page web sinon. Un lien profond
+  // `buildr://` en plus ne menait nulle part sans l'app, ni sur un ordinateur.
   const webLink = `${env.APP_URL}/invite/${params.token}`;
   const expiresFormatted = new Date(params.expiresAt).toLocaleDateString(DATE_TAG[lang], {
     day: 'numeric',
@@ -186,8 +185,7 @@ export function buildInvitationEmail(params: {
           <p style="color: #A8A29E; font-size: 13px;">
             ${T.expires(expiresFormatted)}<br>
             ${T.fallback}<br>
-            <a href="${webLink}" style="color: #D97706; word-break: break-all; overflow-wrap: anywhere;">${webLink}</a><br>
-            ${T.hasApp} <a href="${appLink}" style="color: #D97706;">${T.openInApp}</a>
+            <a href="${webLink}" style="color: #D97706; word-break: break-all; overflow-wrap: anywhere;">${webLink}</a>
           </p>
         </div>
 

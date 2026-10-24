@@ -21,8 +21,6 @@ interface InvitationStrings {
   cta: string;
   expires: (date: string) => string;
   fallback: string;
-  hasApp: string;
-  openInApp: string;
   tagline: string;
   roles: Record<string, string>;
 }
@@ -35,8 +33,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: "Accepter l'invitation",
     expires: (d) => `Cette invitation expire le ${d}.`,
     fallback: 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
-    hasApp: "Vous avez déjà l'application Buildr ?",
-    openInApp: "Ouvrir directement dans l'app",
     tagline: 'Buildr — Gestion de chantiers',
     roles: { admin: 'Administrateur', manager: 'Chef de chantier', employee: 'Ouvrier', client: 'Client', gestionnaire_reseau: 'Gestionnaire réseau' },
   },
@@ -47,8 +43,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: 'Accept the invitation',
     expires: (d) => `This invitation expires on ${d}.`,
     fallback: 'If the button does not work, copy this address into your browser:',
-    hasApp: 'Already have the Buildr app?',
-    openInApp: 'Open directly in the app',
     tagline: 'Buildr — Construction site management',
     roles: { admin: 'Administrator', manager: 'Site manager', employee: 'Worker', client: 'Client', gestionnaire_reseau: 'Network manager' },
   },
@@ -59,8 +53,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: 'Einladung annehmen',
     expires: (d) => `Diese Einladung läuft am ${d} ab.`,
     fallback: 'Wenn die Schaltfläche nicht funktioniert, kopieren Sie diese Adresse in Ihren Browser:',
-    hasApp: 'Sie haben die Buildr-App bereits?',
-    openInApp: 'Direkt in der App öffnen',
     tagline: 'Buildr — Baustellenverwaltung',
     roles: { admin: 'Administrator', manager: 'Bauleiter', employee: 'Mitarbeiter', client: 'Kunde', gestionnaire_reseau: 'Netzbetreiber' },
   },
@@ -71,8 +63,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: 'Aceptar la invitación',
     expires: (d) => `Esta invitación caduca el ${d}.`,
     fallback: 'Si el botón no funciona, copie esta dirección en su navegador:',
-    hasApp: '¿Ya tiene la aplicación Buildr?',
-    openInApp: 'Abrir directamente en la app',
     tagline: 'Buildr — Gestión de obras',
     roles: { admin: 'Administrador', manager: 'Jefe de obra', employee: 'Operario', client: 'Cliente', gestionnaire_reseau: 'Gestor de red' },
   },
@@ -83,8 +73,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: "Accetta l'invito",
     expires: (d) => `Questo invito scade il ${d}.`,
     fallback: 'Se il pulsante non funziona, copi questo indirizzo nel suo browser:',
-    hasApp: "Ha già l'applicazione Buildr?",
-    openInApp: "Apri direttamente nell'app",
     tagline: 'Buildr — Gestione cantieri',
     roles: { admin: 'Amministratore', manager: 'Capocantiere', employee: 'Operaio', client: 'Cliente', gestionnaire_reseau: 'Gestore di rete' },
   },
@@ -95,8 +83,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: 'Aceitar o convite',
     expires: (d) => `Este convite expira a ${d}.`,
     fallback: 'Se o botão não funcionar, copie este endereço para o seu navegador:',
-    hasApp: 'Já tem a aplicação Buildr?',
-    openInApp: 'Abrir diretamente na aplicação',
     tagline: 'Buildr — Gestão de obras',
     roles: { admin: 'Administrador', manager: 'Chefe de obra', employee: 'Trabalhador', client: 'Cliente', gestionnaire_reseau: 'Gestor de rede' },
   },
@@ -107,8 +93,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: 'Daveti kabul et',
     expires: (d) => `Bu davet ${d} tarihinde sona erer.`,
     fallback: 'Düğme çalışmıyorsa bu adresi tarayıcınıza kopyalayın:',
-    hasApp: 'Buildr uygulaması sizde var mı?',
-    openInApp: 'Doğrudan uygulamada aç',
     tagline: 'Buildr — Şantiye yönetimi',
     roles: { admin: 'Yönetici', manager: 'Şantiye şefi', employee: 'Çalışan', client: 'Müşteri', gestionnaire_reseau: 'Şebeke sorumlusu' },
   },
@@ -119,8 +103,6 @@ export const INVITATION: Record<MailLocale, InvitationStrings> = {
     cta: 'Zaakceptuj zaproszenie',
     expires: (d) => `To zaproszenie wygasa ${d}.`,
     fallback: 'Jeśli przycisk nie działa, skopiuj ten adres do przeglądarki:',
-    hasApp: 'Masz już aplikację Buildr?',
-    openInApp: 'Otwórz bezpośrednio w aplikacji',
     tagline: 'Buildr — Zarządzanie budowami',
     roles: { admin: 'Administrator', manager: 'Kierownik budowy', employee: 'Pracownik', client: 'Klient', gestionnaire_reseau: 'Zarządca sieci' },
   },
