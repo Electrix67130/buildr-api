@@ -649,6 +649,13 @@ Or le premier acces se fait le plus souvent depuis un poste de bureau.
 
 Le lien profond reste propose en dessous, pour qui a deja l'application.
 
+Depuis l'app 1.2, le lien https ouvre lui-meme l'application quand elle est
+installee : liens universels iOS et App Links Android, limites a `/invite/*`.
+Le dashboard publie les fichiers d'association
+(`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`).
+Sans l'app, la page web d'invitation s'affiche ; sur telephone, elle renvoie
+vers le store une fois le compte cree, au lieu d'ouvrir le dashboard.
+
 `APP_URL` doit donc pointer sur le dashboard (`https://app.getbuildr.fr`) et non
 sur sa valeur par defaut `http://localhost:3001`, sans quoi le mail enverrait
 l'invite sur un port de sa propre machine.

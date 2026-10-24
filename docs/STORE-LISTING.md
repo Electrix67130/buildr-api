@@ -10,7 +10,7 @@ Textes et déclarations à recopier dans Google Play Console et App Store Connec
 
 | Champ | Valeur |
 |---|---|
-| Nom de l'app | Buildr |
+| Nom de l'app (stores) | Buildr Chantiers — identique App Store et Google Play ; « Buildr » sous l'icône |
 | Nom du développeur (Google, libre) | Buildr |
 | Nom du vendeur (Apple, imposé) | PG TERRASSEMENT |
 | Package / Bundle ID | `fr.getbuildr.app` |
